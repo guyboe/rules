@@ -1,0 +1,28 @@
+# Rules v1.0 — one rule per line; conditions are symbolic predicates.
+[general]
+PREFER simple_design OVER deduplication WHEN principles_conflict
+AVOID speculative_abstractions
+PREFER walrus_operator OVER separate_assignment_and_check WHEN assignment_immediately_precedes_condition AND assigned_value_is_reused
+
+[filesystem]
+PREFER pathlib.Path OVER os.path WHEN manipulating_filesystem_paths
+
+[architecture]
+PREFER functions OVER classes UNLESS shared_mutable_state OR polymorphism_required
+
+[exceptions]
+FORBID bare_except
+
+[models]
+USE direct_attribute_access WHEN accessing_declared_pydantic_or_dataclass_fields
+FORBID getattr_or_dict_get WHEN accessing_declared_pydantic_or_dataclass_fields
+
+[naming]
+PREFER single_word_names OVER multi_word_names WHEN naming_variables
+FORBID abbreviations WHEN naming_variables UNLESS established_it_abbreviation OR single_letter_name
+
+[types]
+PREFER enum.StrEnum_with_auto OVER bare_string_literals WHEN string_values_compared_or_matched
+
+[documentation]
+AVOID docstrings WHEN purpose_evident_from_name_and_parameters

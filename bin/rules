@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""Rules: the implementation-policy store for AI agents.
+
+  rules wake       print the active policy. Run first, every session.
+  rules show [X]   list scopes, or print the policies of a scope or a target.
+  rules get FILE   print a store file: python.rules, rules.tx, semantics.md.
+  rules validate   check python.rules syntax and consistency.
+  rules version    print the store commit and state.
+  rules pull       update the store with git pull --ff-only.
+  rules edit       open the store in $EDITOR.
+  rules init       print the install block.
+
+The store lives in ~/development/rules, or in $RULES_DIR if set.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+POLICY = "python.rules"
+LANGUAGE = "v1.0"
+SERVED = ("python.rules", "rules.tx", "semantics.md", "validate.py")
+AGENTS_BLOCK = """\
+## Rules
+Python implementation choices are governed by the Rules store. Run
+`rules wake` at session start; it prints the active policy and version.
+For the grammar use `rules get rules.tx`, for interpretation
+`rules get semantics.md`. Never copy policy files into this repository.
+
+- Follow the active policy when writing or refactoring code.
+- Edit the policy only when the user explicitly requests a persistent rule
+  change, and only in the store. Never persist incidental coding
+  discussion. Keep one rule per line. Reuse existing scopes and targets.
+  Replace superseded rules instead of appending contradictions.
+- After a rule change run `rules validate`.
+- If `rules` is missing, say so and stop. Do not write code without the
+  policy. `rules init` prints the install block."""
+
+
+def store_path() -> Path:
+    override = os.environ.get("RULES_DIR")
+    if override:
+        return Path(override).expanduser()
+    return Path(__file__).resolve().parent.parent
+
+
+def git(store: Path, *args: str, timeout: float = 5) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(store), *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def version_line(store: Path) -> str:
+    head = git(store, "rev-parse", "--short", "HEAD")
+    sha = head.stdout.strip() if head is not None and head.returncode == 0 else "unknown"
+    status = git(store, "status", "--porcelain")
+    dirty = status is not None and status.returncode == 0 and bool(status.stdout.strip())
+    state = "dirty" if dirty else "clean"
+    return f"RULES {LANGUAGE} @ {sha} ({state})"
+
+
+def parse_policy(path: Path) -> list[tuple[str | None, str]]:
+    scope: str | None = None
+    entries: list[tuple[str | None, str]] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            scope = line[1:-1]
+            continue
+        entries.append((scope, line))
+    return entries
+
+
+def fail(message: str) -> int:
+    print(message, file=sys.stderr)  # noqa: T201
+    return 2
+
+
+def cmd_pull(store: Path, quiet: bool = False) -> int:
+    result = git(store, "pull", "--ff-only")
+    if result is not None and result.returncode == 0:
+        return 0
+    if result is None:
+        reason = "git is not available"
+    else:
+        reason = (result.stderr or result.stdout).strip() or "no usable remote"
+    if not quiet:
+        print(f"pull failed: {reason}", file=sys.stderr)  # noqa: T201
+    return 1
+
+
+def cmd_wake(store: Path) -> int:
+    policy = store / POLICY
+    if not policy.is_file():
+        return fail(f"rules not installed: {store} has no {POLICY}; run rules init")
+    cmd_pull(store, quiet=True)
+    sys.stdout.write(version_line(store) + "\n")
+    sys.stdout.write(
+        "Grammar: rules get rules.tx. Contract: rules get semantics.md.\n\n"
+    )
+    text = policy.read_text(encoding="utf-8")
+    sys.stdout.write(text if text.endswith("\n") else text + "\n")
+    return 0
+
+
+def cmd_show(store: Path, topic: str | None) -> int:
+    policy = store / POLICY
+    if not policy.is_file():
+        return fail(f"rules not installed: {store} has no {POLICY}; run rules init")
+    entries = parse_policy(policy)
+    scopes: list[str] = []
+    for scope, _line in entries:
+        if scope is not None and scope not in scopes:
+            scopes.append(scope)
+    if topic is None:
+        for scope in scopes:
+            count = sum(1 for owner, _line in entries if owner == scope)
+            print(f"[{scope}] {count} policies")  # noqa: T201
+        return 0
+    wanted = topic.strip("[]")
+    if wanted in scopes:
+        for owner, line in entries:
+            if owner == wanted:
+                print(line)  # noqa: T201
+        return 0
+    matches = [line for _owner, line in entries if wanted in line.split()]
+    if not matches:
+        print(  # noqa: T201
+            f"unknown topic {topic!r}; try a scope: "
+            + ", ".join(f"[{scope}]" for scope in scopes),
+            file=sys.stderr,
+        )
+        return 2
+    for line in matches:
+        print(line)  # noqa: T201
+    return 0
+
+
+def cmd_get(store: Path, name: str) -> int:
+    path = store / name
+    if name not in SERVED or not path.is_file():
+        return fail(f"unknown file {name!r}; available: {', '.join(SERVED)}")
+    text = path.read_text(encoding="utf-8")
+    sys.stdout.write(text if text.endswith("\n") else text + "\n")
+    return 0
+
+
+def cmd_validate(store: Path) -> int:
+    validator = store / "validate.py"
+    policy = store / POLICY
+    if not validator.is_file() or not policy.is_file():
+        return fail(f"rules not installed: {store} has no validator")
+    if shutil.which("uv") is None:
+        return fail("uv is required for validate")
+    try:
+        result = subprocess.run(
+            ["uv", "run", "--no-project", str(validator), str(policy)],
+            timeout=300,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exception:
+        return fail(f"validate failed: {exception}")
+    return result.returncode
+
+
+def cmd_edit(store: Path) -> int:
+    editor = os.environ.get("EDITOR") or "vi"
+    try:
+        return subprocess.call([editor, str(store)], check=False)
+    except OSError as exception:
+        return fail(f"cannot open editor: {exception}")
+
+
+def cmd_init(store: Path) -> int:
+    print(  # noqa: T201
+        f"""Install the store on this machine:
+
+  ln -sfn {store}/bin/rules ~/.local/bin/rules
+  rules validate
+  git -C {store} config core.hooksPath .githooks
+
+Add this paragraph to each project's AGENTS.md:
+
+{AGENTS_BLOCK}
+
+Version control of the store itself:
+
+  git -C {store} remote add origin <url>
+  git -C {store} push -u origin main"""
+    )
+    return 0
+
+
+def cmd_version(store: Path) -> int:
+    print(version_line(store))  # noqa: T201
+    return 0
+
+
+COMMANDS = {
+    "wake": lambda store, args: cmd_wake(store),
+    "show": lambda store, args: cmd_show(store, args[0] if args else None),
+    "get": lambda store, args: cmd_get(store, args[0]) if args else fail("get needs a file name"),
+    "validate": lambda store, args: cmd_validate(store),
+    "version": lambda store, args: cmd_version(store),
+    "pull": lambda store, args: cmd_pull(store),
+    "edit": lambda store, args: cmd_edit(store),
+    "init": lambda store, args: cmd_init(store),
+}
+
+
+def usage() -> None:
+    print(__doc__)  # noqa: T201
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if not args:
+        usage()
+        return 0
+    command, rest = args[0], args[1:]
+    handler = COMMANDS.get(command)
+    if handler is None:
+        usage()
+        return 2
+    return handler(store_path(), rest)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

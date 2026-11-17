@@ -1,0 +1,53 @@
+// Rules v1.0. A rule occupies exactly one physical line.
+// IMPORTANT: instantiate textX with skipws=False; newlines are significant.
+Model:
+    lines*=Line
+;
+
+Line:
+    Section | Policy | Remark | Blank
+;
+
+Section:
+    H '[' name=Name ']' H EOL
+;
+
+Policy:
+    H op=Operator WS target=Name
+    (WS 'OVER' WS alternative=Name)?
+    (WS 'WHEN' WS when=Condition)?
+    (WS 'UNLESS' WS unless=Condition)?
+    H EOL
+;
+
+Condition:
+    first=Name rest*=ConditionTail
+;
+
+ConditionTail:
+    WS op=Logic WS value=Name
+;
+
+Operator:
+    'USE' | 'PREFER' | 'AVOID' | 'FORBID'
+;
+
+Logic:
+    'AND' | 'OR'
+;
+
+Name:
+    /[A-Za-z_][A-Za-z0-9_.]*/
+;
+
+Remark:
+    H '#' /[^\r\n]*/ EOL
+;
+
+Blank:
+    H EOL
+;
+
+H: /[ \t]*/;
+WS: /[ \t]+/;
+EOL: /\r?\n/;
