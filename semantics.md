@@ -9,7 +9,7 @@ Read `rules.tx` as the definitive syntax. Read `python.rules` as the active poli
 - `USE X`: X is required when applicable. `PREFER X OVER Y`: choose X rather than Y by default. `AVOID X`: avoid X by default. `FORBID X`: do not use X in the applicable context.
 - `WHEN C`: apply the policy only if C is true. `UNLESS C`: do not apply it if C is true. Both may coexist. Effective applicability is `WHEN and not UNLESS`.
 - A condition is a sequence of named predicates joined by `AND`/`OR`. `AND` binds tighter than `OR`. Parentheses and negation are intentionally unsupported. Split complicated rules into simple independent policies.
-- Names like `shared_mutable_state` are *semantic predicates* interpreted from the coding task, not built-in executable expressions. Avoid opaque abbreviations. The grammar guarantees syntax, not universal semantic truth.
+- Names like `stateless_leaf` are *semantic predicates* interpreted from the coding task, not built-in executable expressions. Avoid opaque abbreviations. The grammar guarantees syntax, not universal semantic truth.
 - Scopes are topic labels, not a formal hierarchy. Use the most appropriate scope.
 - Every target, alternative, and condition name used by a policy has exactly one explanation line in `python.glossary`, shaped `name — explanation`. The glossary is a separate file, parsed by `glossary.tx`, and holds no policies. Its entries are unique and kept in alphabetical order. `validate.py` rejects duplicates and disorder.
 - Prefer a narrower applicable instruction over a generic preference. Do not resolve irreconcilable mandatory/forbidden conflicts by guessing. Ask for clarification.
