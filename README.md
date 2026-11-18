@@ -11,7 +11,9 @@ command at the start of a session.
 | File | Purpose |
 | --- | --- |
 | `python.rules` | The active policy. One rule per line. |
+| `python.glossary` | One `name — explanation` line per symbol used by the policy, alphabetical. |
 | `rules.tx` | The grammar of the policy language. |
+| `glossary.tx` | The grammar of the glossary language. |
 | `semantics.md` | How to read a rule, and the editing protocol. |
 | `validate.py` | Syntax and consistency check (textX, PEP 723). |
 | `bin/rules` | The command line tool. |
@@ -20,15 +22,16 @@ command at the start of a session.
 
 | Command | Result |
 | --- | --- |
-| `rules wake` | Pull best effort, print the version, print the policy |
+| `rules wake` | Pull best effort, print the version, print the policy and glossary |
 | `rules show` | List scopes with their policy counts |
 | `rules show <scope>` | Print the policies of one scope |
 | `rules show <target>` | Print the policies that name one target |
-| `rules get <file>` | Print `python.rules`, `rules.tx`, `semantics.md`, `validate.py` |
-| `rules validate` | Validate `python.rules` through `uv run --no-project` |
+| `rules get <file>` | Print `python.rules`, `python.glossary`, `rules.tx`, `glossary.tx`, `semantics.md`, `validate.py` |
+| `rules validate` | Validate `python.rules` and `python.glossary` through `uv run --no-project` |
 | `rules version` | Print the store commit and `clean` or `dirty` |
 | `rules pull` | Update the store: `git pull --ff-only` |
 | `rules edit` | Open the store in `$EDITOR` |
+| `rules prompt` | Print the paragraph for a project's `AGENTS.md` |
 | `rules init` | Print the install block for a new machine or project |
 
 `wake` works offline. A failed pull is silent inside `wake` and reported
@@ -57,7 +60,9 @@ Do not copy policy files into the project.
 ## Change a rule
 
 1. `rules edit`
-2. Change `python.rules`. Keep one physical line per policy.
+2. Change `python.rules`. Keep one physical line per policy. Keep
+   `python.glossary` in sync with the symbols the policies use, in
+   alphabetical order, one `name — explanation` line per symbol.
 3. `rules validate`
 4. Commit the store.
 

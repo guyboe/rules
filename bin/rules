@@ -3,12 +3,15 @@
 
   rules wake       print the active policy. Run first, every session.
   rules show [X]   list scopes, or print the policies of a scope or a target.
-  rules get FILE   print a store file: python.rules, rules.tx, semantics.md.
-  rules validate   check python.rules syntax and consistency.
+  rules get FILE   print a store file: python.rules, python.glossary,
+                   rules.tx, glossary.tx, semantics.md.
+  rules validate   check python.rules and python.glossary syntax and
+                   consistency.
   rules version    print the store commit and state.
   rules pull       update the store with git pull --ff-only.
   rules edit       open the store in $EDITOR.
   rules init       print the install block.
+  rules prompt     print the paragraph for a project's AGENTS.md.
 
 The store lives in ~/development/rules, or in $RULES_DIR if set.
 """
@@ -22,20 +25,31 @@ import sys
 from pathlib import Path
 
 POLICY = "python.rules"
+GLOSSARY = "python.glossary"
 LANGUAGE = "v1.0"
-SERVED = ("python.rules", "rules.tx", "semantics.md", "validate.py")
+SERVED = (
+    "python.rules",
+    "python.glossary",
+    "rules.tx",
+    "glossary.tx",
+    "semantics.md",
+    "validate.py",
+)
 AGENTS_BLOCK = """\
 ## Rules
+
 Python implementation choices are governed by the Rules store. Run
 `rules wake` at session start; it prints the active policy and version.
-For the grammar use `rules get rules.tx`, for interpretation
-`rules get semantics.md`. Never copy policy files into this repository.
+For the grammar use `rules get rules.tx`, for symbol explanations
+`rules get python.glossary`, for interpretation `rules get semantics.md`.
+Never copy policy files into this repository.
 
 - Follow the active policy when writing or refactoring code.
 - Edit the policy only when the user explicitly requests a persistent rule
   change, and only in the store. Never persist incidental coding
   discussion. Keep one rule per line. Reuse existing scopes and targets.
-  Replace superseded rules instead of appending contradictions.
+  Keep python.glossary in sync and alphabetical. Replace superseded rules
+  instead of appending contradictions.
 - After a rule change run `rules validate`.
 - If `rules` is missing, say so and stop. Do not write code without the
   policy. `rules init` prints the install block."""
@@ -75,7 +89,7 @@ def parse_policy(path: Path) -> list[tuple[str | None, str]]:
     entries: list[tuple[str | None, str]] = []
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
-        if not line or line.startswith("#"):
+        if not line or line.startswith("#") or line.startswith("—"):
             continue
         if line.startswith("[") and line.endswith("]"):
             scope = line[1:-1]
@@ -104,8 +118,12 @@ def cmd_pull(store: Path, quiet: bool = False) -> int:
 
 def cmd_wake(store: Path) -> int:
     policy = store / POLICY
-    if not policy.is_file():
-        return fail(f"rules not installed: {store} has no {POLICY}; run rules init")
+    glossary = store / GLOSSARY
+    if not policy.is_file() or not glossary.is_file():
+        return fail(
+            f"rules not installed: {store} needs {POLICY} and {GLOSSARY}; "
+            "run rules init"
+        )
     cmd_pull(store, quiet=True)
     sys.stdout.write(version_line(store) + "\n")
     sys.stdout.write(
@@ -113,6 +131,10 @@ def cmd_wake(store: Path) -> int:
     )
     text = policy.read_text(encoding="utf-8")
     sys.stdout.write(text if text.endswith("\n") else text + "\n")
+    glossary_text = glossary.read_text(encoding="utf-8")
+    sys.stdout.write(
+        glossary_text if glossary_text.endswith("\n") else glossary_text + "\n"
+    )
     return 0
 
 
@@ -161,13 +183,14 @@ def cmd_get(store: Path, name: str) -> int:
 def cmd_validate(store: Path) -> int:
     validator = store / "validate.py"
     policy = store / POLICY
-    if not validator.is_file() or not policy.is_file():
+    glossary = store / GLOSSARY
+    if not validator.is_file() or not policy.is_file() or not glossary.is_file():
         return fail(f"rules not installed: {store} has no validator")
     if shutil.which("uv") is None:
         return fail("uv is required for validate")
     try:
         result = subprocess.run(
-            ["uv", "run", "--no-project", str(validator), str(policy)],
+            ["uv", "run", "--no-project", str(validator), str(policy), str(glossary)],
             timeout=300,
             check=False,
         )
@@ -204,6 +227,11 @@ Version control of the store itself:
     return 0
 
 
+def cmd_prompt(store: Path) -> int:
+    print(AGENTS_BLOCK, end="")  # noqa: T201
+    return 0
+
+
 def cmd_version(store: Path) -> int:
     print(version_line(store))  # noqa: T201
     return 0
@@ -218,6 +246,7 @@ COMMANDS = {
     "pull": lambda store, args: cmd_pull(store),
     "edit": lambda store, args: cmd_edit(store),
     "init": lambda store, args: cmd_init(store),
+    "prompt": lambda store, args: cmd_prompt(store),
 }
 
 

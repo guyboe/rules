@@ -19,7 +19,14 @@ def pytest_configure(config):
 def store(tmp_path: Path) -> Path:
     target = tmp_path / "rules-store"
     target.mkdir()
-    for name in ("python.rules", "rules.tx", "semantics.md", "validate.py"):
+    for name in (
+        "python.rules",
+        "python.glossary",
+        "rules.tx",
+        "glossary.tx",
+        "semantics.md",
+        "validate.py",
+    ):
         shutil.copy(ROOT / name, target / name)
     return target
 

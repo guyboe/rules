@@ -1,4 +1,5 @@
 # Rules v1.0 — one rule per line; conditions are symbolic predicates.
+# Symbol explanations live in python.glossary (grammar: glossary.tx).
 [general]
 PREFER simple_design OVER deduplication WHEN principles_conflict
 AVOID speculative_abstractions

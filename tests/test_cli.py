@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from conftest import run
+from conftest import ROOT, run
 
 
 class TestWake:
@@ -23,6 +23,13 @@ class TestWake:
         result = run(store, "wake")
         assert "rules get rules.tx" in result.stdout
         assert "rules get semantics.md" in result.stdout
+
+    def test_wake_prints_glossary(self, store):
+        result = run(store, "wake")
+        assert "abbreviations — " in result.stdout
+        assert result.stdout.index("[general]") < result.stdout.index(
+            "abbreviations — "
+        )
 
     def test_wake_without_git_repository(self, store):
         result = run(store, "wake")
@@ -80,6 +87,20 @@ class TestShow:
         result = run(store, "show", "getattr_or_dict_get")
         assert "FORBID getattr_or_dict_get" in result.stdout
 
+    def test_show_scope_ignores_glossary(self, store):
+        result = run(store, "show", "documentation")
+        assert result.returncode == 0
+        assert "—" not in result.stdout
+        assert "AVOID docstrings" in result.stdout
+
+    def test_show_target_ignores_glossary(self, store):
+        result = run(store, "show", "getattr_or_dict_get")
+        assert result.returncode == 0
+        assert result.stdout.strip().splitlines() == [
+            "FORBID getattr_or_dict_get WHEN "
+            "accessing_declared_pydantic_or_dataclass_fields"
+        ]
+
     def test_show_unknown_topic(self, store):
         result = run(store, "show", "nonsense")
         assert result.returncode == 2
@@ -91,6 +112,16 @@ class TestGet:
         result = run(store, "get", "rules.tx")
         assert result.returncode == 0
         assert "Model:" in result.stdout
+
+    def test_get_glossary_file(self, store):
+        result = run(store, "get", "python.glossary")
+        assert result.returncode == 0
+        assert "simple_design — " in result.stdout
+
+    def test_get_glossary_grammar(self, store):
+        result = run(store, "get", "glossary.tx")
+        assert result.returncode == 0
+        assert "GlossaryModel:" in result.stdout
 
     def test_get_unknown_file(self, store):
         result = run(store, "get", "nope.md")
@@ -130,6 +161,26 @@ class TestInit:
         assert "ln -s" in result.stdout
         assert "rules wake" in result.stdout
         assert "AGENTS.md" in result.stdout
+
+
+class TestPrompt:
+    def test_prompt_prints_agents_block(self, store):
+        result = run(store, "prompt")
+        assert result.returncode == 0
+        assert result.stdout.startswith("## Rules\n\n")
+        assert "rules wake" in result.stdout
+        assert "rules init" in result.stdout
+
+    def test_prompt_mentions_glossary(self, store):
+        result = run(store, "prompt")
+        assert "python.glossary" in result.stdout
+        assert "alphabetical" in result.stdout
+
+    def test_prompt_block_is_part_of_init_output(self, store):
+        prompt = run(store, "prompt")
+        init = run(store, "init")
+        assert prompt.returncode == 0
+        assert prompt.stdout.strip() in init.stdout
 
 
 class TestValidate:

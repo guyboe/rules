@@ -1,4 +1,4 @@
 #!/bin/sh
-# Validate the policy on every commit. Same check as `rules validate`.
+# Validate the policy and glossary on every commit. Same check as `rules validate`.
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec uv run --no-project validate.py python.rules
+exec uv run --no-project validate.py python.rules python.glossary

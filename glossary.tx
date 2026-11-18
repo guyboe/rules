@@ -1,0 +1,34 @@
+// Glossary v1.0. One entry per physical line: name — explanation.
+// Entries must be unique and in alphabetical order; validate.py enforces both.
+// IMPORTANT: instantiate textX with skipws=False; newlines are significant.
+GlossaryModel:
+    lines*=Line
+;
+
+Line:
+    Entry | Remark | Blank
+;
+
+Entry:
+    H name=Name WS '—' WS text=Explanation EOL
+;
+
+Explanation:
+    /[^\r\n]+/
+;
+
+Name:
+    /[A-Za-z_][A-Za-z0-9_.]*/
+;
+
+Remark:
+    H '#' /[^\r\n]*/ EOL
+;
+
+Blank:
+    H EOL
+;
+
+H: /[ \t]*/;
+WS: /[ \t]+/;
+EOL: /\r?\n/;

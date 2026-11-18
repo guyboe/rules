@@ -5,7 +5,7 @@
 #   "textx==4.4.0",
 # ]
 # ///
-"""Validate Rules syntax (textX) and local consistency.
+"""Validate Rules and glossary syntax (textX) and their consistency.
 
 Run standalone: uv run --no-project rules/validate.py (no textX in the
 project venv needed: uv builds an isolated env from the PEP 723 metadata
@@ -20,7 +20,11 @@ from pathlib import Path
 
 from textx import TextXError, metamodel_from_file
 
-GRAMMAR = Path(__file__).with_name("rules.tx")
+ROOT = Path(__file__).parent
+RULES_GRAMMAR = ROOT / "rules.tx"
+GLOSSARY_GRAMMAR = ROOT / "glossary.tx"
+DEFAULT_RULES = ROOT / "python.rules"
+DEFAULT_GLOSSARY = ROOT / "python.glossary"
 
 
 def condition_key(condition: object | None) -> tuple | None:
@@ -37,7 +41,29 @@ def condition_key(condition: object | None) -> tuple | None:
     return tuple(tuple(sorted(group)) for group in groups)
 
 
-def check_file(mm: object, path: Path) -> list[str]:
+def used_names_in_rules(mm_rules: object, path: Path) -> tuple[set[str], list[str]]:
+    """Return the symbol names policies use, plus syntax errors."""
+    errors = check_rules(mm_rules, path)
+    try:
+        source = path.read_text(encoding="utf-8")
+        model = mm_rules.model_from_str(source, file_name=str(path))
+    except (OSError, TextXError):
+        return set(), errors
+    used: set[str] = set()
+    for node in model.lines:
+        if type(node).__name__ != "Policy":
+            continue
+        used.add(node.target)
+        if node.alternative:
+            used.add(node.alternative)
+        for cond in (node.when, node.unless):
+            if cond is not None:
+                used.add(cond.first)
+                used.update(part.value for part in cond.rest)
+    return used, errors
+
+
+def check_rules(mm: object, path: Path) -> list[str]:
     errors: list[str] = []
     try:
         source = path.read_text(encoding="utf-8")
@@ -58,9 +84,7 @@ def check_file(mm: object, path: Path) -> list[str]:
     for node in model.lines:
         kind = type(node).__name__
         line = getattr(node, "_tx_position", None)
-        line_number = (
-            source.count("\n", 0, line) + 1 if isinstance(line, int) else "?"
-        )
+        line_number = source.count("\n", 0, line) + 1 if isinstance(line, int) else "?"
         where = f"{path}:{line_number}"
         if kind == "Section":
             scope = node.name
@@ -81,9 +105,7 @@ def check_file(mm: object, path: Path) -> list[str]:
                 if cond is not None:
                     values = [cond.first] + [part.value for part in cond.rest]
                     if len(values) != len(set(values)):
-                        errors.append(
-                            f"{where}: repeated predicate in {label}"
-                        )
+                        errors.append(f"{where}: repeated predicate in {label}")
             signature = (
                 scope,
                 node.target,
@@ -105,23 +127,88 @@ def check_file(mm: object, path: Path) -> list[str]:
     return errors
 
 
+def check_glossary(mm: object, path: Path) -> list[str]:
+    errors: list[str] = []
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError as exception:
+        return [f"{path}: {exception}"]
+    if source and not source.endswith("\n"):
+        return [f"{path}: missing final newline"]
+    try:
+        model = mm.model_from_str(source, file_name=str(path))
+    except TextXError as exception:
+        return [f"{path}: {exception}"]
+
+    glossary: dict[str, int | str] = {}
+    previous: str | None = None
+    for node in model.lines:
+        if type(node).__name__ != "Entry":
+            continue
+        line = getattr(node, "_tx_position", None)
+        line_number = source.count("\n", 0, line) + 1 if isinstance(line, int) else "?"
+        where = f"{path}:{line_number}"
+        name = node.name
+        if name in glossary:
+            errors.append(f"{where}: duplicate glossary entry for {name}")
+            continue
+        if previous is not None and name < previous:
+            errors.append(
+                f"{where}: glossary entry {name} is out of alphabetical "
+                f"order, it belongs before {previous}"
+            )
+        glossary[name] = line_number
+        previous = name
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("files", nargs="*", type=Path, help="*.rules files")
     args = parser.parse_args(argv)
-    paths = args.files or [Path(__file__).with_name("python.rules")]
+    rules_paths = [p for p in args.files if p.suffix == ".rules"] or [DEFAULT_RULES]
+    glossary_paths = [p for p in args.files if p.suffix != ".rules"] or [
+        DEFAULT_GLOSSARY
+    ]
     try:
-        mm = metamodel_from_file(str(GRAMMAR), skipws=False)
+        mm_rules = metamodel_from_file(str(RULES_GRAMMAR), skipws=False)
+        mm_glossary = metamodel_from_file(str(GLOSSARY_GRAMMAR), skipws=False)
     except TextXError as exception:
         print(  # noqa: T201
-            f"Invalid grammar {GRAMMAR}: {exception}", file=sys.stderr
+            f"Invalid grammar: {exception}", file=sys.stderr
         )
         return 2
-    errors = [error for path in paths for error in check_file(mm, path)]
+
+    errors: list[str] = []
+    used: set[str] = set()
+    defined: set[str] = set()
+    for path in rules_paths:
+        names, rule_errors = used_names_in_rules(mm_rules, path)
+        used |= names
+        errors.extend(rule_errors)
+    for path in glossary_paths:
+        errors.extend(check_glossary(mm_glossary, path))
+        try:
+            source = path.read_text(encoding="utf-8")
+            model = mm_glossary.model_from_str(source, file_name=str(path))
+        except (OSError, TextXError):
+            continue
+        defined.update(
+            node.name for node in model.lines if type(node).__name__ == "Entry"
+        )
+
+    glossary_path = glossary_paths[0]
+    for name in sorted(used - defined):
+        errors.append(f"{glossary_path}: glossary entry missing for {name}")
+    for name in sorted(defined - used):
+        errors.append(
+            f"{glossary_path}: glossary name {name} is not used by any policy"
+        )
+
     if errors:
         print("\n".join(errors), file=sys.stderr)  # noqa: T201
         return 1
-    for path in paths:
+    for path in [*rules_paths, *glossary_paths]:
         print(f"OK {path}")  # noqa: T201
     return 0
 

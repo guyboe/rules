@@ -1,4 +1,5 @@
 // Rules v1.0. A rule occupies exactly one physical line.
+// Symbols are explained in python.glossary; its grammar is glossary.tx.
 // IMPORTANT: instantiate textX with skipws=False; newlines are significant.
 Model:
     lines*=Line
