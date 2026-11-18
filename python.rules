@@ -27,3 +27,4 @@ PREFER enum.StrEnum_with_auto OVER bare_string_literals WHEN string_values_compa
 
 [documentation]
 AVOID docstrings WHEN purpose_evident_from_name_and_parameters
+AVOID comments UNLESS explains_non_obvious_constraint

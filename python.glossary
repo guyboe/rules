@@ -8,11 +8,13 @@ assignment_immediately_precedes_condition — the assignment is the line directl
 bare_except — an except clause with no exception type, catching everything
 bare_string_literals — raw values such as "low" or "long" written into the code
 classes — the default structure: state, lifecycle, GTK/fabric integration, or an interface others depend on
+comments — text in code describing what the code does; not the same as a docstring
 deduplication — removing a second copy of the same logic; a default, not a goal above clarity
 direct_attribute_access — read a declared model field as obj.field; dictionaries, mappings, and truly dynamic fields are not model fields
 docstrings — a string literal as the first statement of a definition; write one only for a non-obvious constraint, unit, side effect, or outside reference, never to restate the signature
 enum.StrEnum_with_auto — a str-valued enum built from enum.auto() members for values compared or matched; plain literals stay fine when never compared, and existing committed literals are not rewritten
 established_it_abbreviation — a de-facto term, such as url, id, db, api, or http
+explains_non_obvious_constraint — the comment states a constraint, unit, side effect, or outside reference the code cannot express
 functions — plain free functions, allowed as stateless leaves and not as owners of state or lifecycle
 getattr_or_dict_get — dynamic lookup used where the field is statically known
 manipulating_filesystem_paths — joining, splitting, resolving, or testing filesystem paths
