@@ -9,7 +9,7 @@ PREFER walrus_operator OVER separate_assignment_and_check WHEN assignment_immedi
 PREFER pathlib.Path OVER os.path WHEN manipulating_filesystem_paths
 
 [architecture]
-PREFER functions OVER classes UNLESS shared_mutable_state OR polymorphism_required
+PREFER classes OVER functions UNLESS stateless_leaf
 
 [exceptions]
 FORBID bare_except

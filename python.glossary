@@ -7,27 +7,26 @@ assigned_value_is_reused — the bound value is read again after the check
 assignment_immediately_precedes_condition — the assignment is the line directly above the if
 bare_except — an except clause with no exception type, catching everything
 bare_string_literals — raw values such as "low" or "long" written into the code
-classes — class definitions, used only when state or polymorphism requires them
+classes — the default structure: state, lifecycle, GTK/fabric integration, or an interface others depend on
 deduplication — removing a second copy of the same logic; a default, not a goal above clarity
 direct_attribute_access — read a declared model field as obj.field; dictionaries, mappings, and truly dynamic fields are not model fields
 docstrings — a string literal as the first statement of a definition; write one only for a non-obvious constraint, unit, side effect, or outside reference, never to restate the signature
 enum.StrEnum_with_auto — a str-valued enum built from enum.auto() members for values compared or matched; plain literals stay fine when never compared, and existing committed literals are not rewritten
 established_it_abbreviation — a de-facto term, such as url, id, db, api, or http
-functions — plain free functions, the default structure
+functions — plain free functions, allowed as stateless leaves and not as owners of state or lifecycle
 getattr_or_dict_get — dynamic lookup used where the field is statically known
 manipulating_filesystem_paths — joining, splitting, resolving, or testing filesystem paths
 multi_word_names — a compound name, such as notification_count
 naming_variables — choosing the name of a variable
 os.path — the older string-based path helpers
 pathlib.Path — the object-oriented standard-library path API
-polymorphism_required — several implementations must sit behind one interface
 principles_conflict — two principles point in different directions, so one must yield
 purpose_evident_from_name_and_parameters — the name and parameters already say what it does
 separate_assignment_and_check — assign on one line, test on the next
-shared_mutable_state — state that more than one owner mutates
 simple_design — keep the simpler structure when deduplication and clarity conflict
 single_letter_name — i, j, n for counters; x, y for coordinates
 single_word_names — one full word, such as count; a compound such as pool_size stays when one word would hurt clarity
 speculative_abstractions — an abstraction added before a second real use requires it
+stateless_leaf — a pure module-level helper with no state, timers, threads, subscriptions, or I/O; it stays a function next to the concept it serves
 string_values_compared_or_matched — literals used in ==, match, or configuration switches
 walrus_operator — := binds a value and tests it in the same expression when reused; skip it if it hurts clarity or changes evaluation
