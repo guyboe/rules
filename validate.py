@@ -15,7 +15,6 @@ above).
 from __future__ import annotations
 
 import argparse
-import contextlib
 import sys
 from pathlib import Path
 
@@ -194,12 +193,12 @@ class PolicyCheck:
         seen.add(op)
 
 
-def check_glossary(mm: object, path: Path) -> list[str]:
+def check_glossary(mm: object, path: Path) -> tuple[set[str], list[str]]:
     source, lines, errors = load(mm, path)
     if errors:
-        return errors
+        return set(), errors
 
-    glossary: dict[str, int | str] = {}
+    glossary: dict[str, str] = {}
     previous: str | None = None
     for node in lines:
         if type(node).__name__ != "Entry":
@@ -212,7 +211,13 @@ def check_glossary(mm: object, path: Path) -> list[str]:
             errors.append(f"{position}: glossary entry {name} is out of alphabetical order, it belongs before {previous}")
         glossary[name] = position
         previous = name
-    return errors
+    return set(glossary), errors
+
+
+def paths(files: list[Path]) -> tuple[list[Path], list[Path]]:
+    rules = [p for p in files if p.suffix == ".rules"] or [DEFAULT_RULES]
+    glossary = [p for p in files if p.suffix != ".rules"] or [DEFAULT_GLOSSARY]
+    return rules, glossary
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -220,8 +225,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--grammar", type=Path, default=RULES_GRAMMAR, help="the rules grammar file")
     parser.add_argument("files", nargs="*", type=Path, help="*.rules files")
     args = parser.parse_args(argv)
-    rules_paths = [p for p in args.files if p.suffix == ".rules"] or [DEFAULT_RULES]
-    glossary_paths = [p for p in args.files if p.suffix != ".rules"] or [DEFAULT_GLOSSARY]
+    rules_paths, glossary_paths = paths(args.files)
     try:
         mm_rules = metamodel_from_file(str(args.grammar), skipws=False)
         mm_glossary = metamodel_from_file(str(GLOSSARY_GRAMMAR), skipws=False)
@@ -231,35 +235,36 @@ def main(argv: list[str] | None = None) -> int:
     if (drift := operator_drift(mm_rules)) is not None:
         print(drift, file=sys.stderr)
         return 1
-
-    errors: list[str] = []
-    used: set[str] = set()
-    defined: set[str] = set()
-    for path in rules_paths:
-        names, rule_errors = check_rules(mm_rules, path)
-        used |= names
-        errors.extend(rule_errors)
-    for path in glossary_paths:
-        errors.extend(check_glossary(mm_glossary, path))
-        with contextlib.suppress(OSError, TextXError):
-            source = path.read_text(encoding="utf-8")
-            model = mm_glossary.model_from_str(source, file_name=str(path))
-            if isinstance(model, str):
-                continue
-            defined.update(node.name for node in model.lines if type(node).__name__ == "Entry")
-
+    used, defined, errors = collect(mm_rules, mm_glossary, rules_paths, glossary_paths)
     glossary_path = glossary_paths[0]
     for name in sorted(used - defined):
         errors.append(f"{glossary_path}: glossary entry missing for {name}")
     for name in sorted(defined - used):
         errors.append(f"{glossary_path}: glossary name {name} is not used by any policy")
-
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
     for path in [*rules_paths, *glossary_paths]:
         print(f"OK {path}")
     return 0
+
+
+def collect(
+    mm_rules: object, mm_glossary: object, rules_paths: list[Path], glossary_paths: list[Path]
+) -> tuple[set[str], set[str], list[str]]:
+    """One pass over every file: used policy names, defined glossary names, errors."""
+    used: set[str] = set()
+    defined: set[str] = set()
+    errors: list[str] = []
+    for path in rules_paths:
+        names, rule_errors = check_rules(mm_rules, path)
+        used |= names
+        errors.extend(rule_errors)
+    for path in glossary_paths:
+        names, glossary_errors = check_glossary(mm_glossary, path)
+        defined |= names
+        errors.extend(glossary_errors)
+    return used, defined, errors
 
 
 if __name__ == "__main__":
