@@ -79,80 +79,119 @@ def operator_drift(mm: object) -> str | None:
     return change + f"validate.py (grammar has {', '.join(sorted(known))})"
 
 
-def used_names_in_rules(mm_rules: object, path: Path) -> tuple[set[str], list[str]]:
-    """Return the symbol names policies use, plus syntax errors."""
-    errors = check_rules(mm_rules, path)
-    source, lines, _ = load(mm_rules, path)
-    used: set[str] = set()
-    for node in lines:
-        if type(node).__name__ != "Policy":
-            continue
-        used.add(node.target)
+def check_rules(mm: object, path: Path) -> tuple[set[str], list[str]]:
+    """Return the symbol names policies use, plus every policy error — one parse."""
+    source, lines, errors = load(mm, path)
+    if errors:
+        return set(), errors
+    checker = PolicyCheck(path, source)
+    return checker.used, checker.check(lines)
+
+
+class PolicyCheck:
+    """One file's policy checks; the instance carries that file's state."""
+
+    def __init__(self, path: Path, source: str) -> None:
+        self.path = path
+        self.source = source
+        self.scope: str | None = None
+        self.errors: list[str] = []
+        self.used: set[str] = set()
+        self.sections: set[str] = set()
+        self.ids: set[str] = set()
+        self.signatures: set[tuple] = set()
+        self.operators_seen: dict[tuple, set[str]] = {}
+
+    def check(self, lines: list) -> list[str]:
+        for node in lines:
+            kind = type(node).__name__
+            if kind == "Section":
+                self.section(node)
+            elif kind == "Policy":
+                self.policy(node)
+        return self.errors
+
+    def section(self, node: object) -> None:
+        scope = node.name
+        if scope in self.sections:
+            self.errors.append(f"{where(self.path, self.source, node)}: duplicate scope [{scope}]")
+        self.sections.add(scope)
+        self.scope = scope
+
+    def policy(self, node: object) -> None:
+        self.used |= self.names(node)
+        if self.scope is None:
+            self.errors.append(f"{where(self.path, self.source, node)}: policy must follow a [scope]")
+            return
+        op = node.op
+        self.prefix(node)
+        self.unique_id(node)
+        self.operator_use(node, op)
+        self.predicates(node)
+        self.duplicate(node, op)
+        self.contradiction(node, op)
+
+    def names(self, node: object) -> set[str]:
+        used = {node.target}
         if node.alternative:
             used.add(node.alternative)
         for cond in (node.when, node.unless):
             if cond is not None:
                 used.add(cond.first)
                 used.update(part.value for part in cond.rest)
-    return used, errors
+        return used
 
+    def prefix(self, node: object) -> None:
+        scope = self.scope
+        if scope is not None and len(scope) >= 2 and node.id[:2] == scope[:2].upper():
+            return
+        self.errors.append(f"{where(self.path, self.source, node)}: policy id {node.id} does not match the scope {scope}")
 
-def check_rules(mm: object, path: Path) -> list[str]:
-    source, lines, errors = load(mm, path)
-    if errors:
-        return errors
+    def unique_id(self, node: object) -> None:
+        if node.id in self.ids:
+            self.errors.append(f"{where(self.path, self.source, node)}: duplicate policy id {node.id}")
+        self.ids.add(node.id)
 
-    scope: str | None = None
-    seen_sections: set[str] = set()
-    seen_rules: set[tuple] = set()
-    seen_ids: set[str] = set()
-    policies: dict[tuple, set[str]] = {}
-    known = grammar_literals(mm, "Operator")
-    operators = {name: name for name in known}
+    def operator_use(self, node: object, op: str) -> None:
+        mark = where(self.path, self.source, node)
+        if op != "PREFER" and node.alternative:
+            self.errors.append(f"{mark}: OVER is only valid with PREFER")
+        if op == "PREFER" and not node.alternative:
+            self.errors.append(f"{mark}: PREFER requires OVER alternative")
+        if node.alternative and node.target == node.alternative:
+            self.errors.append(f"{mark}: target and alternative must differ")
 
-    for node in lines:
-        kind = type(node).__name__
-        position = where(path, source, node)
-        if kind == "Section":
-            if (scope := node.name) in seen_sections:
-                errors.append(f"{position}: duplicate scope [{scope}]")
-            seen_sections.add(scope)
-        elif kind == "Policy":
-            if scope is None:
-                errors.append(f"{position}: policy must follow a [scope]")
+    def predicates(self, node: object) -> None:
+        for label, cond in [("WHEN", node.when), ("UNLESS", node.unless)]:
+            if cond is None:
                 continue
-            prefix = node.id[:2]
-            expected = scope[:2].upper()
-            if len(scope) < 2 or prefix != expected:
-                errors.append(f"{position}: policy id {node.id} does not match the scope {scope}")
-            if node.id in seen_ids:
-                errors.append(f"{position}: duplicate policy id {node.id}")
-            seen_ids.add(node.id)
-            if (op := operators[node.op]) != "PREFER" and node.alternative:
-                errors.append(f"{position}: OVER is only valid with PREFER")
-            if op == "PREFER" and not node.alternative:
-                errors.append(f"{position}: PREFER requires OVER alternative")
-            if node.alternative and node.target == node.alternative:
-                errors.append(f"{position}: target and alternative must differ")
-            for label, cond in [("WHEN", node.when), ("UNLESS", node.unless)]:
-                if cond is not None:
-                    values = [cond.first] + [part.value for part in cond.rest]
-                    if len(values) != len(set(values)):
-                        errors.append(f"{position}: repeated predicate in {label}")
-            signature = (
-                scope,
-                node.target,
-                condition_key(node.when),
-                condition_key(node.unless),
-            )
-            if (whole := (*signature, op, node.alternative or "")) in seen_rules:
-                errors.append(f"{position}: duplicate policy")
-            seen_rules.add(whole)
-            seen: set[str] = policies.setdefault(signature, set())
-            if (op == "USE" and "FORBID" in seen) or (op == "FORBID" and "USE" in seen):
-                errors.append(f"{position}: direct USE/FORBID contradiction for {node.target}")
-            seen.add(op)
-    return errors
+            values = [cond.first] + [part.value for part in cond.rest]
+            if len(values) != len(set(values)):
+                self.errors.append(f"{where(self.path, self.source, node)}: repeated predicate in {label}")
+
+    def duplicate(self, node: object, op: str) -> None:
+        signature = (
+            self.scope,
+            node.target,
+            condition_key(node.when),
+            condition_key(node.unless),
+        )
+        whole = (*signature, op, node.alternative or "")
+        if whole in self.signatures:
+            self.errors.append(f"{where(self.path, self.source, node)}: duplicate policy")
+        self.signatures.add(whole)
+
+    def contradiction(self, node: object, op: str) -> None:
+        signature = (
+            self.scope,
+            node.target,
+            condition_key(node.when),
+            condition_key(node.unless),
+        )
+        seen: set[str] = self.operators_seen.setdefault(signature, set())
+        if (op == "USE" and "FORBID" in seen) or (op == "FORBID" and "USE" in seen):
+            self.errors.append(f"{where(self.path, self.source, node)}: direct USE/FORBID contradiction for {node.target}")
+        seen.add(op)
 
 
 def check_glossary(mm: object, path: Path) -> list[str]:
@@ -197,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     used: set[str] = set()
     defined: set[str] = set()
     for path in rules_paths:
-        names, rule_errors = used_names_in_rules(mm_rules, path)
+        names, rule_errors = check_rules(mm_rules, path)
         used |= names
         errors.extend(rule_errors)
     for path in glossary_paths:
