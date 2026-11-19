@@ -290,6 +290,31 @@ class TestStructureChecks:
         assert completed.returncode == 0, completed.stderr
         assert "OK" in completed.stdout
 
+    def test_empty_glossary_rejects_used_name(self, store: Path) -> None:
+        store_files(store, "[general]\nGE0101 USE target.x\n", "")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "glossary entry missing for target.x" in completed.stderr
+
+    def test_glossary_missing_final_newline_rejected(self, store: Path) -> None:
+        (store / "python.rules").write_text("[general]\nGE0101 USE target.x\n", encoding="utf-8")
+        (store / "python.glossary").write_text("target.x — the probe target", encoding="utf-8")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert f"{store / 'python.glossary'}: missing final newline" in completed.stderr
+
+    def test_duplicate_scope_stays_current(self, store: Path) -> None:
+        store_files(
+            store,
+            "[general]\nGE0101 USE target.x\n\n[testing]\nTE0101 USE target.x\n\n[general]\nGE0102 USE target.y\n",
+            "target.x — probe\ntarget.y — probe\n",
+        )
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert completed.stderr.count("duplicate scope [general]") == 1
+        assert "must follow a [scope]" not in completed.stderr
+        assert "does not match the scope" not in completed.stderr
+
 
 class TestSignatureChecks:
     """The whole-policy signature checks: duplicates, contradictions, newline."""
