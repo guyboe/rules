@@ -398,3 +398,18 @@ class TestOperatorsFromGrammar:
     def test_shipped_grammar_matches_checks(self, store):
         completed = validate(store, grammar=RULES_DIR / "rules.tx")
         assert completed.returncode == 0, completed.stderr
+
+    def test_operator_drift_reported_once_for_many_files(self, store):
+        self.drift_store(
+            store,
+            "'USE' | 'PREFER' | 'AVOID' | 'FORBID'",
+            "'USE' | 'PREFER' | 'AVOID' | 'MUST' | 'FORBID'",
+            "[general]\nGE0101 MUST target.x\n",
+        )
+        second = store / "second.rules"
+        second.write_text("[general]\nGE0101 MUST target.y\n", encoding="utf-8")
+        completed = validate_files(
+            store, store / "python.rules", second, grammar=store / "rules.tx"
+        )
+        assert completed.returncode == 1
+        assert completed.stderr.count("operator literals changed") == 1

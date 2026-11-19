@@ -71,6 +71,14 @@ def where(path: Path, source: str, node: object) -> str:
     return f"{path}:{line}"
 
 
+def operator_drift(mm: object) -> str | None:
+    known = grammar_literals(mm, "Operator")
+    if set(known) == {"PREFER", "USE", "FORBID", "AVOID"}:
+        return None
+    change = "rules.tx: operator literals changed; update the checks in "
+    return change + f"validate.py (grammar has {', '.join(sorted(known))})"
+
+
 def used_names_in_rules(mm_rules: object, path: Path) -> tuple[set[str], list[str]]:
     """Return the symbol names policies use, plus syntax errors."""
     errors = check_rules(mm_rules, path)
@@ -100,11 +108,6 @@ def check_rules(mm: object, path: Path) -> list[str]:
     seen_ids: set[str] = set()
     policies: dict[tuple, set[str]] = {}
     known = grammar_literals(mm, "Operator")
-    expected = {"PREFER", "USE", "FORBID", "AVOID"}
-    if set(known) != expected:
-        change = "rules.tx: operator literals changed; update the checks in "
-        details = f"validate.py (grammar has {', '.join(sorted(known))})"
-        return [change + details]
     operators = {name: name for name in known}
 
     for node in lines:
@@ -186,6 +189,9 @@ def main(argv: list[str] | None = None) -> int:
     except TextXError as exception:
         print(f"Invalid grammar: {exception}", file=sys.stderr)
         return 2
+    if (drift := operator_drift(mm_rules)) is not None:
+        print(drift, file=sys.stderr)
+        return 1
 
     errors: list[str] = []
     used: set[str] = set()
