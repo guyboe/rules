@@ -9,6 +9,7 @@ bare_except — an except clause with no exception type, catching everything
 bare_string_literals — raw values such as "low" or "long" written into the code
 classes — the default structure: state, lifecycle, or an interface others depend on
 comments — text in code describing what the code does; not the same as a docstring
+contextlib.suppress — the with-statement form with suppress(...); the listed exception types are ignored for the whole block, and the block continues on the next statement
 deduplication — removing a second copy of the same logic; a default, not a goal above clarity
 direct_attribute_access — read a declared model field as obj.field; dictionaries, mappings, and truly dynamic fields are not model fields
 docstrings — a string literal as the first statement of a definition; write one only for a non-obvious constraint, unit, side effect, or outside reference, never to restate the signature
@@ -20,6 +21,7 @@ getattr_or_dict_get — dynamic lookup used where the field is statically known
 manipulating_filesystem_paths — joining, splitting, resolving, or testing filesystem paths
 multi_word_names — a compound name, such as notification_count
 naming_variables — choosing the name of a variable
+only_suppression_needed — the handler adds nothing beyond skipping: its body is only pass or continue, with no logging, re-raise, fallback value, or other logic
 os.path — the older string-based path helpers
 pathlib.Path — the object-oriented standard-library path API
 principles_conflict — two principles point in different directions, so one must yield

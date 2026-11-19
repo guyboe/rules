@@ -15,6 +15,7 @@ above).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 from pathlib import Path
 
@@ -191,12 +192,10 @@ def main(argv: list[str] | None = None) -> int:
         errors.extend(rule_errors)
     for path in glossary_paths:
         errors.extend(check_glossary(mm_glossary, path))
-        try:
+        with contextlib.suppress(OSError, TextXError):
             source = path.read_text(encoding="utf-8")
             model = mm_glossary.model_from_str(source, file_name=str(path))
-        except (OSError, TextXError):
-            continue
-        defined.update(node.name for node in model.lines if type(node).__name__ == "Entry")
+            defined.update(node.name for node in model.lines if type(node).__name__ == "Entry")
 
     glossary_path = glossary_paths[0]
     for name in sorted(used - defined):

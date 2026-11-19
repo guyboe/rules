@@ -13,6 +13,7 @@ PREFER classes OVER functions UNLESS stateless_leaf
 
 [exceptions]
 FORBID bare_except
+USE contextlib.suppress WHEN only_suppression_needed
 
 [models]
 USE direct_attribute_access WHEN accessing_declared_pydantic_or_dataclass_fields
