@@ -16,6 +16,8 @@ command at the start of a session.
 | `glossary.tx` | The grammar of the glossary language. |
 | `semantics.md` | How to read a rule, and the editing protocol. |
 | `validate.py` | Syntax and consistency check (textX, PEP 723). |
+| `agents/opencode/embed.md` | The paragraph for the OpenCode `instructions` entry. |
+| `agents/opencode/rules.add.md` | The template of the OpenCode `/rules/add` command. |
 | `bin/rules` | The command line tool. |
 
 ## Commands
@@ -26,8 +28,8 @@ command at the start of a session.
 | `rules show` | List scopes with their policy counts |
 | `rules show <scope>` | Print the policies of one scope |
 | `rules show <target>` | Print the policies that name one target |
-| `rules get <file>` | Print `python.rules`, `python.glossary`, `rules.tx`, `glossary.tx`, `semantics.md`, `validate.py` |
-| `rules validate` | Validate `python.rules` and `python.glossary` through `uv run --no-project` |
+| `rules get <file>` | Print `python.rules`, `python.glossary`, `rules.tx`, `glossary.tx`, `semantics.md`, `validate.py`, `agents/opencode/embed.md`, `agents/opencode/rules.add.md` |
+| `rules validate` | Check `python.rules` and `python.glossary` through `uv run --no-project` |
 | `rules version` | Print the store commit and `clean` or `dirty` |
 | `rules pull` | Update the store: `git pull --ff-only` |
 | `rules edit` | Open the store in `$EDITOR` |
@@ -51,6 +53,17 @@ before every commit in the store, so a broken policy never lands.
 
 The default store path is `~/development/rules`, resolved from the
 symlink. Set `RULES_DIR` to use another path.
+
+Install in OpenCode:
+
+```bash
+mkdir -p ~/.config/opencode/commands/rules
+ln -sfn ~/development/rules/agents/opencode/rules.add.md ~/.config/opencode/commands/rules/add.md
+```
+
+Then add `"instructions": ["~/development/rules/agents/opencode/embed.md"]` to
+`~/.config/opencode/opencode.json`. `rules init` prints both blocks with the
+expanded store path.
 
 ## Add a project
 

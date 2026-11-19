@@ -113,6 +113,18 @@ class TestGet:
         assert result.returncode == 0
         assert "Model:" in result.stdout
 
+    def test_get_embed_file(self, store):
+        result = run(store, "get", "agents/opencode/embed.md")
+        assert result.returncode == 0
+        assert result.stdout == (store / "agents/opencode/embed.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_get_add_command_file(self, store):
+        result = run(store, "get", "agents/opencode/rules.add.md")
+        assert result.returncode == 0
+        assert "Stage 1" in result.stdout
+
     def test_get_glossary_file(self, store):
         result = run(store, "get", "python.glossary")
         assert result.returncode == 0
@@ -162,12 +174,23 @@ class TestInit:
         assert "rules wake" in result.stdout
         assert "AGENTS.md" in result.stdout
 
+    def test_init_prints_opencode_embed_block(self, store):
+        result = run(store, "init")
+        assert result.returncode == 0
+        assert "instructions" in result.stdout
+        assert f"{store}/agents/opencode/embed.md" in result.stdout
+        assert "commands/rules" in result.stdout
+        assert f"{store}/agents/opencode/rules.add.md" in result.stdout
+
 
 class TestPrompt:
     def test_prompt_prints_agents_block(self, store):
         result = run(store, "prompt")
         assert result.returncode == 0
-        assert result.stdout.startswith("## Rules\n\n")
+        assert result.stdout.startswith("# Rules\n\n")
+        assert result.stdout == (store / "agents/opencode/embed.md").read_text(
+            encoding="utf-8"
+        )
         assert "rules wake" in result.stdout
         assert "rules init" in result.stdout
 
@@ -175,6 +198,19 @@ class TestPrompt:
         result = run(store, "prompt")
         assert "python.glossary" in result.stdout
         assert "alphabetical" in result.stdout
+
+    def test_prompt_missing_embed_file(self, tmp_path):
+        target = tmp_path / "rules-store"
+        target.mkdir()
+        (target / "python.rules").write_text("[general]\n", encoding="utf-8")
+        (target / "agents").mkdir()
+        (target / "agents/opencode").mkdir()
+        (target / "agents/opencode/rules.add.md").write_text(
+            "---\ndescription: probe\n---\nx\n", encoding="utf-8"
+        )
+        result = run(target, "prompt")
+        assert result.returncode == 2
+        assert "embed.md is missing" in result.stderr
 
     def test_prompt_block_is_part_of_init_output(self, store):
         prompt = run(store, "prompt")

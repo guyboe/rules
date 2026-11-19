@@ -26,8 +26,12 @@ def store(tmp_path: Path) -> Path:
         "glossary.tx",
         "semantics.md",
         "validate.py",
+        "agents/opencode/embed.md",
+        "agents/opencode/rules.add.md",
     ):
-        shutil.copy(ROOT / name, target / name)
+        path = target / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(ROOT / name, path)
     return target
 
 

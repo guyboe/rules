@@ -4,7 +4,8 @@
   rules wake       print the active policy. Run first, every session.
   rules show [X]   list scopes, or print the policies of a scope or a target.
   rules get FILE   print a store file: python.rules, python.glossary,
-                   rules.tx, glossary.tx, semantics.md.
+                   rules.tx, glossary.tx, semantics.md, validate.py,
+                   agents/opencode/embed.md, agents/opencode/rules.add.md.
   rules validate   check python.rules and python.glossary syntax and
                    consistency.
   rules version    print the store commit and state.
@@ -26,6 +27,8 @@ from pathlib import Path
 
 POLICY = "python.rules"
 GLOSSARY = "python.glossary"
+EMBED = "agents/opencode/embed.md"
+ADD_COMMAND = "agents/opencode/rules.add.md"
 LANGUAGE = "v1.0"
 SERVED = (
     "python.rules",
@@ -34,27 +37,9 @@ SERVED = (
     "glossary.tx",
     "semantics.md",
     "validate.py",
+    "agents/opencode/embed.md",
+    "agents/opencode/rules.add.md",
 )
-AGENTS_BLOCK = """\
-## Rules
-
-Python implementation choices are governed by the Rules store. Run
-`rules wake` at session start; it prints the active policy and version.
-For the grammar use `rules get rules.tx`, for symbol explanations
-`rules get python.glossary`, for interpretation `rules get semantics.md`.
-Never copy policy files into this repository.
-
-- Follow the active policy when writing or refactoring code.
-- Edit the policy only when the user explicitly requests a persistent rule
-  change, and only in the store. Never persist incidental coding
-  discussion. Keep one rule per line. Reuse existing scopes and targets.
-  Keep python.glossary in sync and alphabetical. Replace superseded rules
-  instead of appending contradictions.
-- After a rule change run `rules validate`.
-- If `rules` is missing, say so and stop. Do not write code without the
-  policy. `rules init` prints the install block."""
-
-
 def store_path() -> Path:
     override = os.environ.get("RULES_DIR")
     if override:
@@ -207,7 +192,17 @@ def cmd_edit(store: Path) -> int:
         return fail(f"cannot open editor: {exception}")
 
 
+def read_store_file(store: Path, name: str) -> str:
+    path = store / name
+    if not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
 def cmd_init(store: Path) -> int:
+    paragraph = read_store_file(store, EMBED)
+    if not paragraph:
+        return fail(f"store is incomplete: {EMBED} is missing")
     print(  # noqa: T201
         f"""Install the store on this machine:
 
@@ -217,18 +212,31 @@ def cmd_init(store: Path) -> int:
 
 Add this paragraph to each project's AGENTS.md:
 
-{AGENTS_BLOCK}
-
+{paragraph}
 Version control of the store itself:
 
   git -C {store} remote add origin <url>
-  git -C {store} push -u origin main"""
+  git -C {store} push -u origin main
+
+Embed in OpenCode (https://opencode.ai/docs/instructions):
+
+In ~/.config/opencode/opencode.json add:
+
+  "instructions": ["{store}/{EMBED}"]
+
+Install the /rules-add command:
+
+  mkdir -p ~/.config/opencode/commands/rules
+  ln -sfn {store}/{ADD_COMMAND} ~/.config/opencode/commands/rules/add.md"""
     )
     return 0
 
 
 def cmd_prompt(store: Path) -> int:
-    print(AGENTS_BLOCK, end="")  # noqa: T201
+    paragraph = read_store_file(store, EMBED)
+    if not paragraph:
+        return fail(f"store is incomplete: {EMBED} is missing")
+    sys.stdout.write(paragraph if paragraph.endswith("\n") else paragraph + "\n")
     return 0
 
 
