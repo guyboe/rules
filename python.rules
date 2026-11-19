@@ -24,6 +24,7 @@ FORBID abbreviations WHEN naming_variables UNLESS established_it_abbreviation OR
 
 [types]
 PREFER enum.StrEnum_with_auto OVER bare_string_literals WHEN string_values_compared_or_matched
+USE type_hints WHEN writing_function_signatures
 
 [documentation]
 AVOID docstrings WHEN purpose_evident_from_name_and_parameters

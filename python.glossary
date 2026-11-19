@@ -32,4 +32,6 @@ single_word_names — one full word, such as count; a compound such as pool_size
 speculative_abstractions — an abstraction added before a second real use requires it
 stateless_leaf — a pure module-level helper with no state, timers, threads, subscriptions, or I/O; it stays a function next to the concept it serves
 string_values_compared_or_matched — literals used in ==, match, or configuration switches
+type_hints — annotations on parameters and the return type; locals stay unannotated unless inference fails, and existing committed signatures are not rewritten
 walrus_operator — := binds a value and tests it in the same expression when reused; skip it if it hurts clarity or changes evaluation
+writing_function_signatures — defining or changing a function, method, or constructor signature
