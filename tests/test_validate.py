@@ -226,6 +226,133 @@ class TestGlossaryValidation:
         assert "simple_design" in completed.stderr
 
 
+PROBE = "target.x — the probe target\ntarget.y — probe\nunique.z — probe\n"
+
+
+def store_files(store: Path, rules: str, glossary: str = PROBE) -> Path:
+    (store / "python.rules").write_text(rules, encoding="utf-8")
+    (store / "python.glossary").write_text(glossary, encoding="utf-8")
+    return store
+
+
+def validate_files(
+    store: Path, *paths: Path, grammar: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    command = ["uv", "run", "--no-project", str(VALIDATE)]
+    if grammar is not None:
+        command += ["--grammar", str(grammar)]
+    command += [str(path) for path in paths]
+    return subprocess.run(command, capture_output=True, text=True, check=False)
+
+
+class TestStructureChecks:
+    """The policy structure checks one line at a time."""
+
+    def test_duplicate_scope_rejected(self, store):
+        store_files(store, "[general]\nGE0101 USE target.x\n\n[general]\nGE0102 USE target.y\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "duplicate scope [general]" in completed.stderr
+
+    def test_policy_before_scope_rejected(self, store):
+        store_files(store, "GE0101 USE target.x\n\n[general]\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "policy must follow a [scope]" in completed.stderr
+
+    def test_over_with_non_prefer_rejected(self, store):
+        store_files(store, "[general]\nGE0101 USE target.x OVER target.y\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "OVER is only valid with PREFER" in completed.stderr
+
+    def test_prefer_without_over_rejected(self, store):
+        store_files(store, "[general]\nGE0101 PREFER target.x\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "PREFER requires OVER alternative" in completed.stderr
+
+    def test_alternative_equals_target_rejected(self, store):
+        store_files(store, "[general]\nGE0101 PREFER target.x OVER target.x\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "target and alternative must differ" in completed.stderr
+
+    def test_repeated_predicate_rejected(self, store):
+        store_files(store, "[general]\nGE0101 USE target.x WHEN unique.z AND unique.z\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "repeated predicate in WHEN" in completed.stderr
+
+
+class TestSignatureChecks:
+    """The whole-policy signature checks: duplicates, contradictions, newline."""
+
+    def test_duplicate_policy_rejected(self, store):
+        store_files(store, "[general]\nGE0101 USE target.x\nGE0102 USE target.x\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "duplicate policy" in completed.stderr
+
+    def test_duplicate_policy_ignores_condition_order(self, store):
+        store_files(
+            store,
+            "[general]\nGE0101 USE target.x WHEN unique.z AND target.y\nGE0102 USE target.x WHEN target.y AND unique.z\n",
+        )
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "duplicate policy" in completed.stderr
+
+    def test_distinct_alternatives_allowed(self, store):
+        store_files(
+            store,
+            "[general]\nGE0101 PREFER target.x OVER target.y\nGE0102 PREFER target.x OVER unique.z\n",
+        )
+        completed = validate(store)
+        assert completed.returncode == 0, completed.stderr
+
+    def test_and_or_conditions_are_distinct(self, store):
+        store_files(
+            store,
+            "[general]\nGE0101 USE target.x WHEN unique.z AND target.y\nGE0102 USE target.x WHEN unique.z OR target.y\n",
+        )
+        completed = validate(store)
+        assert completed.returncode == 0, completed.stderr
+
+    def test_use_forbid_contradiction_rejected(self, store):
+        store_files(store, "[general]\nGE0101 USE target.x\nGE0102 FORBID target.x\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "direct USE/FORBID contradiction for target.x" in completed.stderr
+
+    def test_forbid_use_contradiction_rejected(self, store):
+        store_files(store, "[general]\nGE0101 FORBID target.x\nGE0102 USE target.x\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "direct USE/FORBID contradiction for target.x" in completed.stderr
+
+    def test_missing_final_newline_rejected(self, store):
+        store_files(store, "[general]\nGE0101 USE target.x")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert "missing final newline" in completed.stderr
+
+    def test_broken_rules_report_glossary_unused(self, store):
+        store_files(store, "[general]\nGE0101 PREFER\n")
+        completed = validate(store)
+        assert completed.returncode == 1
+        assert str(store / "python.rules") in completed.stderr
+        assert "glossary name target.x is not used by any policy" in completed.stderr
+
+    def test_errors_name_the_failing_file(self, store):
+        (store / "good.rules").write_text("[general]\nGE0101 USE target.x\n", encoding="utf-8")
+        (store / "bad.rules").write_text("[general]\nGE0101 PREFER\n", encoding="utf-8")
+        completed = validate_files(store, store / "good.rules", store / "bad.rules")
+        assert completed.returncode == 1
+        assert "bad.rules" in completed.stderr
+        assert "good.rules" not in completed.stderr
+
+
 class TestOperatorsFromGrammar:
     """validate.py takes the operator literals from rules.tx, not from a copy."""
 
