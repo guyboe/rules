@@ -28,6 +28,7 @@ command at the start of a session.
 | `rules show` | List scopes with their policy counts |
 | `rules show <scope>` | Print the policies of one scope |
 | `rules show <target>` | Print the policies that name one target |
+| `rules show <ID>` | Print the policy with that ID, e.g. `EX0002` |
 | `rules get <file>` | Print `python.rules`, `python.glossary`, `rules.tx`, `glossary.tx`, `semantics.md`, `validate.py`, `agents/opencode/embed.md`, `agents/opencode/rules.add.md` |
 | `rules validate` | Check `python.rules` and `python.glossary` through `uv run --no-project` |
 | `rules version` | Print the store commit and `clean` or `dirty` |
@@ -73,8 +74,10 @@ Do not copy policy files into the project.
 ## Change a rule
 
 1. `rules edit`
-2. Change `python.rules`. Keep one physical line per policy. Keep
-   `python.glossary` in sync with the symbols the policies use, in
+2. Change `python.rules`. Keep one physical line per policy. Each policy line
+   starts with its permanent ID — the scope's first two letters capitalized plus
+   the next free number (`max + 1` in the two-letter pool); never renumber.
+   Keep `python.glossary` in sync with the symbols the policies use, in
    alphabetical order, one `name — explanation` line per symbol.
 3. `rules validate`
 4. Commit the store.

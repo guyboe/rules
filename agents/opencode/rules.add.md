@@ -15,7 +15,9 @@ Stage 1 (propose, read-only, one message):
    python.rules`, and `rules get python.glossary`. Read every result in full.
 2. Formulate ONE rules-language line for the request. Use the operators USE,
    PREFER, AVOID, FORBID with the optional OVER, WHEN, UNLESS. Pick the most
-   fitting existing scope. Reuse an existing glossary term when it fits.
+   fitting existing scope. Assign the next free ID in that scope's two-letter
+   pool (highest existing number in the pool + 1). Reuse an existing glossary
+   term when it fits.
 3. List every existing glossary term close in meaning to each new term. Reuse
    or rename instead of adding a near-duplicate.
 4. Present in one message: the rule line with its scope and a one-line
@@ -25,9 +27,10 @@ Stage 1 (propose, read-only, one message):
 5. Stop. Make NO edits. Wait for approval.
 
 Stage 2 (apply, only after explicit approval):
-6. Add the rule line to python.rules under the proposed scope. Add the new
-   glossary lines to python.glossary in alphabetical order. If the request
-   supersedes an existing rule, replace that line instead of appending.
+6. Add the rule line with its proposed ID to python.rules under the proposed
+   scope. Add the new glossary lines to python.glossary in alphabetical order.
+   If the request supersedes an existing rule, replace that line instead of
+   appending; the replacement takes a new ID and the old ID is retired.
 7. Run `rules validate`. On failure, fix the presented text and run it again.
    Never commit a failing store. Never bypass the pre-commit hook.
 8. Commit the two files with "feat(<scope>): <one-line summary>".

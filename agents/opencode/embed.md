@@ -9,7 +9,8 @@ Never copy policy files into this repository.
 - Follow the active policy when writing or refactoring code.
 - Edit the policy only when the user explicitly requests a persistent rule
   change, and only in the store. Never persist incidental coding
-  discussion. Keep one rule per line. Reuse existing scopes and targets.
+  discussion. Keep one rule per line. Start every rule line with its
+  permanent ID (never renumber). Reuse existing scopes and targets.
   Keep python.glossary in sync and alphabetical. Replace superseded rules
   instead of appending contradictions.
 - After a rule change run `rules validate`.

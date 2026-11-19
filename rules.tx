@@ -1,4 +1,4 @@
-// Rules v1.0. A rule occupies exactly one physical line.
+// Rules v1.1. A rule occupies exactly one physical line and starts with its ID.
 // Symbols are explained in python.glossary; its grammar is glossary.tx.
 // IMPORTANT: instantiate textX with skipws=False; newlines are significant.
 Model:
@@ -14,7 +14,7 @@ Section:
 ;
 
 Policy:
-    H op=Operator WS target=Name
+    H id=ID WS op=Operator WS target=Name
     (WS 'OVER' WS alternative=Name)?
     (WS 'WHEN' WS when=Condition)?
     (WS 'UNLESS' WS unless=Condition)?
@@ -35,6 +35,10 @@ Operator:
 
 Logic:
     'AND' | 'OR'
+;
+
+ID:
+    /[A-Z]{2}[0-9]{4}/
 ;
 
 Name:

@@ -1,35 +1,35 @@
-# Rules v1.0 — one rule per line; conditions are symbolic predicates.
+# Rules v1.1 — one rule per line; each rule starts with its ID.
 # Symbol explanations live in python.glossary (grammar: glossary.tx).
 [general]
-PREFER simple_design OVER deduplication WHEN principles_conflict
-AVOID speculative_abstractions
-PREFER walrus_operator OVER separate_assignment_and_check WHEN assignment_immediately_precedes_condition AND assigned_value_is_reused
+GE0001 PREFER simple_design OVER deduplication WHEN principles_conflict
+GE0002 AVOID speculative_abstractions
+GE0003 PREFER walrus_operator OVER separate_assignment_and_check WHEN assignment_immediately_precedes_condition AND assigned_value_is_reused
 
 [filesystem]
-PREFER pathlib.Path OVER os.path WHEN manipulating_filesystem_paths
+FI0001 PREFER pathlib.Path OVER os.path WHEN manipulating_filesystem_paths
 
 [architecture]
-PREFER classes OVER functions UNLESS stateless_leaf
+AR0001 PREFER classes OVER functions UNLESS stateless_leaf
 
 [exceptions]
-FORBID bare_except
-USE contextlib.suppress WHEN only_suppression_needed
+EX0001 FORBID bare_except
+EX0002 USE contextlib.suppress WHEN only_suppression_needed
 
 [models]
-USE direct_attribute_access WHEN accessing_declared_pydantic_or_dataclass_fields
-FORBID getattr_or_dict_get WHEN accessing_declared_pydantic_or_dataclass_fields
+MO0001 USE direct_attribute_access WHEN accessing_declared_pydantic_or_dataclass_fields
+MO0002 FORBID getattr_or_dict_get WHEN accessing_declared_pydantic_or_dataclass_fields
 
 [naming]
-PREFER single_word_names OVER multi_word_names WHEN naming_variables
-FORBID abbreviations WHEN naming_variables UNLESS established_it_abbreviation OR single_letter_name
+NA0001 PREFER single_word_names OVER multi_word_names WHEN naming_variables
+NA0002 FORBID abbreviations WHEN naming_variables UNLESS established_it_abbreviation OR single_letter_name
 
 [types]
-PREFER enum.StrEnum_with_auto OVER bare_string_literals WHEN string_values_compared_or_matched
-USE type_hints WHEN writing_function_signatures
+TY0001 PREFER enum.StrEnum_with_auto OVER bare_string_literals WHEN string_values_compared_or_matched
+TY0002 USE type_hints WHEN writing_function_signatures
 
 [documentation]
-AVOID docstrings WHEN purpose_evident_from_name_and_parameters
-AVOID comments UNLESS explains_non_obvious_constraint
+DO0001 AVOID docstrings WHEN purpose_evident_from_name_and_parameters
+DO0002 AVOID comments UNLESS explains_non_obvious_constraint
 
 [policy]
-FORBID project_specific_rules
+PO0001 FORBID project_specific_rules

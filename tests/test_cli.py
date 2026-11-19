@@ -11,11 +11,11 @@ class TestWake:
         result = run(store, "wake")
         assert result.returncode == 0
         assert "[general]" in result.stdout
-        assert "PREFER simple_design OVER deduplication" in result.stdout
+        assert "GE0001 PREFER simple_design OVER deduplication" in result.stdout
 
     def test_wake_prints_version_line(self, store):
         result = run(store, "wake")
-        assert result.stdout.startswith("RULES v1.0 @ ")
+        assert result.stdout.startswith("RULES v1.1 @ ")
         assert "(clean)" in result.stdout.splitlines()[0]
 
     def test_wake_prints_pointer(self, store):
@@ -77,12 +77,12 @@ class TestShow:
 
     def test_show_scope_prints_policies(self, store):
         result = run(store, "show", "filesystem")
-        assert "PREFER pathlib.Path OVER os.path" in result.stdout
+        assert "FI0001 PREFER pathlib.Path OVER os.path" in result.stdout
         assert "[general]" not in result.stdout
 
     def test_show_target_prints_matching_line(self, store):
         result = run(store, "show", "getattr_or_dict_get")
-        assert "FORBID getattr_or_dict_get" in result.stdout
+        assert "MO0002 FORBID getattr_or_dict_get" in result.stdout
 
     def test_show_scope_ignores_glossary(self, store):
         result = run(store, "show", "documentation")
@@ -94,7 +94,14 @@ class TestShow:
         result = run(store, "show", "getattr_or_dict_get")
         assert result.returncode == 0
         assert result.stdout.strip().splitlines() == [
-            "FORBID getattr_or_dict_get WHEN accessing_declared_pydantic_or_dataclass_fields"
+            "MO0002 FORBID getattr_or_dict_get WHEN accessing_declared_pydantic_or_dataclass_fields"
+        ]
+
+    def test_show_by_id(self, store):
+        result = run(store, "show", "EX0001")
+        assert result.returncode == 0
+        assert result.stdout.strip().splitlines() == [
+            "EX0001 FORBID bare_except"
         ]
 
     def test_show_unknown_topic(self, store):
@@ -218,7 +225,7 @@ class TestValidate:
 
     @pytest.mark.manual
     def test_validate_rejects_broken_policy(self, store):
-        (store / "python.rules").write_text("[a]\nPREFER x\n", encoding="utf-8")
+        (store / "python.rules").write_text("[aa]\nAA0001 PREFER x\n", encoding="utf-8")
         result = run(store, "validate")
         assert result.returncode == 1
         assert "PREFER requires OVER" in result.stderr

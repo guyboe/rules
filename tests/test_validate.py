@@ -66,7 +66,7 @@ class TestPythonRules:
         rules = (RULES_DIR / "python.rules").read_text(encoding="utf-8")
         assert re.search(r"^\[types\]\s*$", rules, re.MULTILINE), "scope [types] missing"
         assert re.search(
-            r"^PREFER enum\.StrEnum_with_auto OVER bare_string_literals"
+            r"^TY0001 PREFER enum\.StrEnum_with_auto OVER bare_string_literals"
             r" WHEN string_values_compared_or_matched\s*$",
             rules,
             re.MULTILINE,
@@ -76,11 +76,50 @@ class TestPythonRules:
         rules = (RULES_DIR / "python.rules").read_text(encoding="utf-8")
         assert re.search(r"^\[documentation\]\s*$", rules, re.MULTILINE)
         assert re.search(
-            r"^AVOID docstrings"
+            r"^DO0001 AVOID docstrings"
             r" WHEN purpose_evident_from_name_and_parameters\s*$",
             rules,
             re.MULTILINE,
         )
+
+
+class TestIdChecks:
+    """Every policy line carries a scope-derived, unique ID."""
+
+    @staticmethod
+    def id_store(store: Path, policy: str) -> subprocess.CompletedProcess[str]:
+        (store / "python.rules").write_text(policy, encoding="utf-8")
+        (store / "python.glossary").write_text(
+            "target.x — the probe target\ntarget.y — probe\nunique.z — probe\nty — probe\n",
+            encoding="utf-8",
+        )
+        return validate(store)
+
+    def test_missing_id_rejected(self, store):
+        completed = self.id_store(store, "[general]\nPREFER target.x OVER target.y WHEN unique.z\n")
+        assert completed.returncode == 1
+
+    def test_wrong_prefix_rejected(self, store):
+        completed = self.id_store(store, "[general]\nXX0101 PREFER target.x OVER target.y WHEN unique.z\n")
+        assert completed.returncode == 1
+        assert "policy id XX0101 does not match the scope general" in completed.stderr
+
+    def test_lowercase_prefix_rejected(self, store):
+        completed = self.id_store(store, "[general]\nge0101 PREFER target.x OVER target.y WHEN unique.z\n")
+        assert completed.returncode == 1
+
+    def test_short_scope_rejected(self, store):
+        completed = self.id_store(store, "[g]\nGG0101 PREFER target.x OVER target.y WHEN unique.z\n")
+        assert completed.returncode == 1
+        assert "policy id GG0101 does not match the scope g" in completed.stderr
+
+    def test_duplicate_id_rejected(self, store):
+        completed = self.id_store(
+            store,
+            "[general]\nGE0101 PREFER target.x OVER target.y WHEN unique.z\n\n[testing]\nGE0101 USE target.x WHEN ty\n",
+        )
+        assert completed.returncode == 1
+        assert "duplicate policy id GE0101" in completed.stderr
 
 
 def validate(store: Path, grammar: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -195,7 +234,10 @@ class TestOperatorsFromGrammar:
         grammar = (RULES_DIR / "rules.tx").read_text(encoding="utf-8")
         (store / "rules.tx").write_text(grammar.replace(old, new), encoding="utf-8")
         (store / "python.rules").write_text(policy, encoding="utf-8")
-        (store / "python.glossary").write_text("probe.x — the probe target\n", encoding="utf-8")
+        (store / "python.glossary").write_text(
+            "target.x — the probe target\n",
+            encoding="utf-8",
+        )
         return store
 
     def test_added_operator_warns_to_update_checks(self, store):
@@ -203,7 +245,7 @@ class TestOperatorsFromGrammar:
             store,
             "'USE' | 'PREFER' | 'AVOID' | 'FORBID'",
             "'USE' | 'PREFER' | 'AVOID' | 'MUST' | 'FORBID'",
-            "[general]\nMUST probe.x\n",
+            "[general]\nGE0101 MUST target.x\n",
         )
         completed = validate(store, grammar=store / "rules.tx")
         assert completed.returncode == 1
@@ -214,7 +256,7 @@ class TestOperatorsFromGrammar:
             store,
             "'USE' | 'PREFER' | 'AVOID' | 'FORBID'",
             "'USE' | 'MAY' | 'AVOID' | 'FORBID'",
-            "[naming]\nMAY probe.x\n",
+            "[naming]\nNA0101 MAY target.x\n",
         )
         completed = validate(store, grammar=store / "rules.tx")
         assert completed.returncode != 0

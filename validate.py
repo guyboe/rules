@@ -85,6 +85,7 @@ def check_rules(mm: object, path: Path) -> list[str]:
     scope: str | None = None
     seen_sections: set[str] = set()
     seen_rules: set[tuple] = set()
+    seen_ids: set[str] = set()
     policies: dict[tuple, set[str]] = {}
     known = grammar_literals(mm, "Operator")
     expected = {"PREFER", "USE", "FORBID", "AVOID"}
@@ -108,6 +109,13 @@ def check_rules(mm: object, path: Path) -> list[str]:
             if scope is None:
                 errors.append(f"{where}: policy must follow a [scope]")
                 continue
+            prefix = node.id[:2]
+            expected = scope[:2].upper()
+            if len(scope) < 2 or prefix != expected:
+                errors.append(f"{where}: policy id {node.id} does not match the scope {scope}")
+            if node.id in seen_ids:
+                errors.append(f"{where}: duplicate policy id {node.id}")
+            seen_ids.add(node.id)
             op = operators[node.op]
             if op != "PREFER" and node.alternative:
                 errors.append(f"{where}: OVER is only valid with PREFER")
