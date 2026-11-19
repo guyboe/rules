@@ -27,12 +27,12 @@ DEFAULT_RULES = ROOT / "python.rules"
 DEFAULT_GLOSSARY = ROOT / "python.glossary"
 
 
-def grammar_literals(mm_rules: object, rule_name: str) -> list[str]:
-    rule = mm_rules[rule_name]._tx_peg_rule
+def grammar_literals(metamodel_rules: object, rule_name: str) -> list[str]:
+    rule = metamodel_rules[rule_name]._tx_peg_rule
     return [node.to_match for node in rule.nodes if type(node).__name__ == "StrMatch"]
 
 
-def load(mm: object, path: Path) -> tuple[str, list, list[str]]:
+def load(metamodel: object, path: Path) -> tuple[str, list, list[str]]:
     """Read and parse one file. `lines` stays empty whenever `errors` is non-empty."""
 
     try:
@@ -42,7 +42,7 @@ def load(mm: object, path: Path) -> tuple[str, list, list[str]]:
     if source and not source.endswith("\n"):
         return "", [], [f"{path}: missing final newline"]
     try:
-        model = mm.model_from_str(source, file_name=str(path))
+        model = metamodel.model_from_str(source, file_name=str(path))
     except TextXError as exception:
         return "", [], [f"{path}: {exception}"]
     # An empty model parses to '' instead of an object with .lines.
@@ -70,17 +70,17 @@ def where(path: Path, source: str, node: object) -> str:
     return f"{path}:{line}"
 
 
-def operator_drift(mm: object) -> str | None:
-    known = grammar_literals(mm, "Operator")
+def operator_drift(metamodel: object) -> str | None:
+    known = grammar_literals(metamodel, "Operator")
     if set(known) == {"PREFER", "USE", "FORBID", "AVOID"}:
         return None
     change = "rules.tx: operator literals changed; update the checks in "
     return change + f"validate.py (grammar has {', '.join(sorted(known))})"
 
 
-def check_rules(mm: object, path: Path) -> tuple[set[str], list[str]]:
+def check_rules(metamodel: object, path: Path) -> tuple[set[str], list[str]]:
     """Return the symbol names policies use, plus every policy error — one parse."""
-    source, lines, errors = load(mm, path)
+    source, lines, errors = load(metamodel, path)
     if errors:
         return set(), errors
     checker = PolicyCheck(path, source)
@@ -191,8 +191,8 @@ class PolicyCheck:
         seen.add(operator)
 
 
-def check_glossary(mm: object, path: Path) -> tuple[set[str], list[str]]:
-    source, lines, errors = load(mm, path)
+def check_glossary(metamodel: object, path: Path) -> tuple[set[str], list[str]]:
+    source, lines, errors = load(metamodel, path)
     if errors:
         return set(), errors
 
@@ -225,15 +225,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     rules_paths, glossary_paths = paths(args.files)
     try:
-        mm_rules = metamodel_from_file(str(args.grammar), skipws=False)
-        mm_glossary = metamodel_from_file(str(GLOSSARY_GRAMMAR), skipws=False)
+        rules_metamodel = metamodel_from_file(str(args.grammar), skipws=False)
+        glossary_metamodel = metamodel_from_file(str(GLOSSARY_GRAMMAR), skipws=False)
     except TextXError as exception:
         print(f"Invalid grammar: {exception}", file=sys.stderr)
         return 2
-    if (drift := operator_drift(mm_rules)) is not None:
+    if (drift := operator_drift(rules_metamodel)) is not None:
         print(drift, file=sys.stderr)
         return 1
-    used, defined, errors = collect(mm_rules, mm_glossary, rules_paths, glossary_paths)
+    used, defined, errors = collect(rules_metamodel, glossary_metamodel, rules_paths, glossary_paths)
     glossary_path = glossary_paths[0]
     for name in sorted(used - defined):
         errors.append(f"{glossary_path}: glossary entry missing for {name}")
@@ -248,18 +248,18 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def collect(
-    mm_rules: object, mm_glossary: object, rules_paths: list[Path], glossary_paths: list[Path]
+    rules_metamodel: object, glossary_metamodel: object, rules_paths: list[Path], glossary_paths: list[Path]
 ) -> tuple[set[str], set[str], list[str]]:
     """One pass over every file: used policy names, defined glossary names, errors."""
     used: set[str] = set()
     defined: set[str] = set()
     errors: list[str] = []
     for path in rules_paths:
-        names, rule_errors = check_rules(mm_rules, path)
+        names, rule_errors = check_rules(rules_metamodel, path)
         used |= names
         errors.extend(rule_errors)
     for path in glossary_paths:
-        names, glossary_errors = check_glossary(mm_glossary, path)
+        names, glossary_errors = check_glossary(glossary_metamodel, path)
         defined |= names
         errors.extend(glossary_errors)
     return used, defined, errors
