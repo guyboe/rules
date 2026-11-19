@@ -53,7 +53,7 @@ def load(mm: object, path: Path) -> tuple[str, list, list[str]]:
 def condition_key(condition: object | None) -> tuple | None:
     if condition is None:
         return None
-    parts = [(p.op, p.value) for p in condition.rest]
+    parts = [(p.logic, p.value) for p in condition.rest]
     # AND binds tighter than OR; canonicalize without changing precedence.
     groups: list[list[str]] = [[condition.first]]
     for operator, value in parts:
@@ -111,8 +111,7 @@ class PolicyCheck:
         return self.errors
 
     def section(self, node: object) -> None:
-        scope = node.name
-        if scope in self.sections:
+        if (scope := node.name) in self.sections:
             self.errors.append(f"{where(self.path, self.source, node)}: duplicate scope [{scope}]")
         self.sections.add(scope)
         self.scope = scope
@@ -122,13 +121,13 @@ class PolicyCheck:
         if self.scope is None:
             self.errors.append(f"{where(self.path, self.source, node)}: policy must follow a [scope]")
             return
-        op = node.op
+        operator = node.operator
         self.prefix(node)
         self.unique_id(node)
-        self.operator_use(node, op)
+        self.operator_use(node, operator)
         self.predicates(node)
-        self.duplicate(node, op)
-        self.contradiction(node, op)
+        self.duplicate(node, operator)
+        self.contradiction(node, operator)
 
     def names(self, node: object) -> set[str]:
         used = {node.target}
@@ -151,11 +150,11 @@ class PolicyCheck:
             self.errors.append(f"{where(self.path, self.source, node)}: duplicate policy id {node.id}")
         self.ids.add(node.id)
 
-    def operator_use(self, node: object, op: str) -> None:
+    def operator_use(self, node: object, operator: str) -> None:
         mark = where(self.path, self.source, node)
-        if op != "PREFER" and node.alternative:
+        if operator != "PREFER" and node.alternative:
             self.errors.append(f"{mark}: OVER is only valid with PREFER")
-        if op == "PREFER" and not node.alternative:
+        if operator == "PREFER" and not node.alternative:
             self.errors.append(f"{mark}: PREFER requires OVER alternative")
         if node.alternative and node.target == node.alternative:
             self.errors.append(f"{mark}: target and alternative must differ")
@@ -168,19 +167,18 @@ class PolicyCheck:
             if len(values) != len(set(values)):
                 self.errors.append(f"{where(self.path, self.source, node)}: repeated predicate in {label}")
 
-    def duplicate(self, node: object, op: str) -> None:
+    def duplicate(self, node: object, operator: str) -> None:
         signature = (
             self.scope,
             node.target,
             condition_key(node.when),
             condition_key(node.unless),
         )
-        whole = (*signature, op, node.alternative or "")
-        if whole in self.signatures:
+        if (whole := (*signature, operator, node.alternative or "")) in self.signatures:
             self.errors.append(f"{where(self.path, self.source, node)}: duplicate policy")
         self.signatures.add(whole)
 
-    def contradiction(self, node: object, op: str) -> None:
+    def contradiction(self, node: object, operator: str) -> None:
         signature = (
             self.scope,
             node.target,
@@ -188,9 +186,9 @@ class PolicyCheck:
             condition_key(node.unless),
         )
         seen: set[str] = self.operators_seen.setdefault(signature, set())
-        if (op == "USE" and "FORBID" in seen) or (op == "FORBID" and "USE" in seen):
+        if (operator == "USE" and "FORBID" in seen) or (operator == "FORBID" and "USE" in seen):
             self.errors.append(f"{where(self.path, self.source, node)}: direct USE/FORBID contradiction for {node.target}")
-        seen.add(op)
+        seen.add(operator)
 
 
 def check_glossary(mm: object, path: Path) -> tuple[set[str], list[str]]:
