@@ -33,6 +33,24 @@ def grammar_literals(mm_rules: object, rule_name: str) -> list[str]:
     return [node.to_match for node in rule.nodes if type(node).__name__ == "StrMatch"]
 
 
+def load(mm: object, path: Path) -> tuple[str, list, list[str]]:
+    """Read and parse one file. `lines` stays empty whenever `errors` is non-empty."""
+
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError as exception:
+        return "", [], [f"{path}: {exception}"]
+    if source and not source.endswith("\n"):
+        return "", [], [f"{path}: missing final newline"]
+    try:
+        model = mm.model_from_str(source, file_name=str(path))
+    except TextXError as exception:
+        return "", [], [f"{path}: {exception}"]
+    # An empty model parses to '' instead of an object with .lines.
+    lines = [] if isinstance(model, str) else model.lines
+    return source, lines, []
+
+
 def condition_key(condition: object | None) -> tuple | None:
     if condition is None:
         return None
@@ -47,16 +65,18 @@ def condition_key(condition: object | None) -> tuple | None:
     return tuple(tuple(sorted(group)) for group in groups)
 
 
+def where(path: Path, source: str, node: object) -> str:
+    position = getattr(node, "_tx_position", None)
+    line = source.count("\n", 0, position) + 1 if isinstance(position, int) else "?"
+    return f"{path}:{line}"
+
+
 def used_names_in_rules(mm_rules: object, path: Path) -> tuple[set[str], list[str]]:
     """Return the symbol names policies use, plus syntax errors."""
     errors = check_rules(mm_rules, path)
-    try:
-        source = path.read_text(encoding="utf-8")
-        model = mm_rules.model_from_str(source, file_name=str(path))
-    except (OSError, TextXError):
-        return set(), errors
+    source, lines, _ = load(mm_rules, path)
     used: set[str] = set()
-    for node in model.lines:
+    for node in lines:
         if type(node).__name__ != "Policy":
             continue
         used.add(node.target)
@@ -70,17 +90,9 @@ def used_names_in_rules(mm_rules: object, path: Path) -> tuple[set[str], list[st
 
 
 def check_rules(mm: object, path: Path) -> list[str]:
-    errors: list[str] = []
-    try:
-        source = path.read_text(encoding="utf-8")
-    except OSError as exception:
-        return [f"{path}: {exception}"]
-    if source and not source.endswith("\n"):
-        return [f"{path}: missing final newline"]
-    try:
-        model = mm.model_from_str(source, file_name=str(path))
-    except TextXError as exception:
-        return [f"{path}: {exception}"]
+    source, lines, errors = load(mm, path)
+    if errors:
+        return errors
 
     scope: str | None = None
     seen_sections: set[str] = set()
@@ -95,37 +107,35 @@ def check_rules(mm: object, path: Path) -> list[str]:
         return [change + details]
     operators = {name: name for name in known}
 
-    for node in model.lines:
+    for node in lines:
         kind = type(node).__name__
-        line = getattr(node, "_tx_position", None)
-        line_number = source.count("\n", 0, line) + 1 if isinstance(line, int) else "?"
-        where = f"{path}:{line_number}"
+        position = where(path, source, node)
         if kind == "Section":
             if (scope := node.name) in seen_sections:
-                errors.append(f"{where}: duplicate scope [{scope}]")
+                errors.append(f"{position}: duplicate scope [{scope}]")
             seen_sections.add(scope)
         elif kind == "Policy":
             if scope is None:
-                errors.append(f"{where}: policy must follow a [scope]")
+                errors.append(f"{position}: policy must follow a [scope]")
                 continue
             prefix = node.id[:2]
             expected = scope[:2].upper()
             if len(scope) < 2 or prefix != expected:
-                errors.append(f"{where}: policy id {node.id} does not match the scope {scope}")
+                errors.append(f"{position}: policy id {node.id} does not match the scope {scope}")
             if node.id in seen_ids:
-                errors.append(f"{where}: duplicate policy id {node.id}")
+                errors.append(f"{position}: duplicate policy id {node.id}")
             seen_ids.add(node.id)
             if (op := operators[node.op]) != "PREFER" and node.alternative:
-                errors.append(f"{where}: OVER is only valid with PREFER")
+                errors.append(f"{position}: OVER is only valid with PREFER")
             if op == "PREFER" and not node.alternative:
-                errors.append(f"{where}: PREFER requires OVER alternative")
+                errors.append(f"{position}: PREFER requires OVER alternative")
             if node.alternative and node.target == node.alternative:
-                errors.append(f"{where}: target and alternative must differ")
+                errors.append(f"{position}: target and alternative must differ")
             for label, cond in [("WHEN", node.when), ("UNLESS", node.unless)]:
                 if cond is not None:
                     values = [cond.first] + [part.value for part in cond.rest]
                     if len(values) != len(set(values)):
-                        errors.append(f"{where}: repeated predicate in {label}")
+                        errors.append(f"{position}: repeated predicate in {label}")
             signature = (
                 scope,
                 node.target,
@@ -133,42 +143,32 @@ def check_rules(mm: object, path: Path) -> list[str]:
                 condition_key(node.unless),
             )
             if (whole := (*signature, op, node.alternative or "")) in seen_rules:
-                errors.append(f"{where}: duplicate policy")
+                errors.append(f"{position}: duplicate policy")
             seen_rules.add(whole)
             seen: set[str] = policies.setdefault(signature, set())
             if (op == "USE" and "FORBID" in seen) or (op == "FORBID" and "USE" in seen):
-                errors.append(f"{where}: direct USE/FORBID contradiction for {node.target}")
+                errors.append(f"{position}: direct USE/FORBID contradiction for {node.target}")
             seen.add(op)
     return errors
 
 
 def check_glossary(mm: object, path: Path) -> list[str]:
-    errors: list[str] = []
-    try:
-        source = path.read_text(encoding="utf-8")
-    except OSError as exception:
-        return [f"{path}: {exception}"]
-    if source and not source.endswith("\n"):
-        return [f"{path}: missing final newline"]
-    try:
-        model = mm.model_from_str(source, file_name=str(path))
-    except TextXError as exception:
-        return [f"{path}: {exception}"]
+    source, lines, errors = load(mm, path)
+    if errors:
+        return errors
 
     glossary: dict[str, int | str] = {}
     previous: str | None = None
-    for node in model.lines:
+    for node in lines:
         if type(node).__name__ != "Entry":
             continue
-        line = getattr(node, "_tx_position", None)
-        line_number = source.count("\n", 0, line) + 1 if isinstance(line, int) else "?"
-        where = f"{path}:{line_number}"
+        position = where(path, source, node)
         if (name := node.name) in glossary:
-            errors.append(f"{where}: duplicate glossary entry for {name}")
+            errors.append(f"{position}: duplicate glossary entry for {name}")
             continue
         if previous is not None and name < previous:
-            errors.append(f"{where}: glossary entry {name} is out of alphabetical order, it belongs before {previous}")
-        glossary[name] = line_number
+            errors.append(f"{position}: glossary entry {name} is out of alphabetical order, it belongs before {previous}")
+        glossary[name] = position
         previous = name
     return errors
 
@@ -199,6 +199,8 @@ def main(argv: list[str] | None = None) -> int:
         with contextlib.suppress(OSError, TextXError):
             source = path.read_text(encoding="utf-8")
             model = mm_glossary.model_from_str(source, file_name=str(path))
+            if isinstance(model, str):
+                continue
             defined.update(node.name for node in model.lines if type(node).__name__ == "Entry")
 
     glossary_path = glossary_paths[0]

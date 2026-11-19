@@ -284,6 +284,12 @@ class TestStructureChecks:
         assert completed.returncode == 1
         assert "repeated predicate in WHEN" in completed.stderr
 
+    def test_empty_rules_accepted(self, store):
+        store_files(store, "", "")
+        completed = validate(store)
+        assert completed.returncode == 0, completed.stderr
+        assert "OK" in completed.stdout
+
 
 class TestSignatureChecks:
     """The whole-policy signature checks: duplicates, contradictions, newline."""
