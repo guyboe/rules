@@ -4,7 +4,7 @@
 abbreviations — a shortened word, such as cnt, idx, or buf; write count, index, buffer in new code and renames, never rewrite existing committed names
 accessing_declared_pydantic_or_dataclass_fields — reading a field that the model declares
 assigned_value_is_reused — the bound value is read again after the check
-assignment_immediately_precedes_condition — the assignment is the line directly above the if
+assignment_immediately_precedes_condition — the assignment binds the value the condition tests, on the line directly above the if
 bare_except — an except clause with no exception type, catching everything
 bare_string_literals — raw values such as "low" or "long" written into the code
 classes — the default structure: state, lifecycle, or an interface others depend on

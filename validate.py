@@ -101,8 +101,7 @@ def check_rules(mm: object, path: Path) -> list[str]:
         line_number = source.count("\n", 0, line) + 1 if isinstance(line, int) else "?"
         where = f"{path}:{line_number}"
         if kind == "Section":
-            scope = node.name
-            if scope in seen_sections:
+            if (scope := node.name) in seen_sections:
                 errors.append(f"{where}: duplicate scope [{scope}]")
             seen_sections.add(scope)
         elif kind == "Policy":
@@ -116,8 +115,7 @@ def check_rules(mm: object, path: Path) -> list[str]:
             if node.id in seen_ids:
                 errors.append(f"{where}: duplicate policy id {node.id}")
             seen_ids.add(node.id)
-            op = operators[node.op]
-            if op != "PREFER" and node.alternative:
+            if (op := operators[node.op]) != "PREFER" and node.alternative:
                 errors.append(f"{where}: OVER is only valid with PREFER")
             if op == "PREFER" and not node.alternative:
                 errors.append(f"{where}: PREFER requires OVER alternative")
@@ -134,8 +132,7 @@ def check_rules(mm: object, path: Path) -> list[str]:
                 condition_key(node.when),
                 condition_key(node.unless),
             )
-            whole = (*signature, op, node.alternative or "")
-            if whole in seen_rules:
+            if (whole := (*signature, op, node.alternative or "")) in seen_rules:
                 errors.append(f"{where}: duplicate policy")
             seen_rules.add(whole)
             seen: set[str] = policies.setdefault(signature, set())
@@ -166,8 +163,7 @@ def check_glossary(mm: object, path: Path) -> list[str]:
         line = getattr(node, "_tx_position", None)
         line_number = source.count("\n", 0, line) + 1 if isinstance(line, int) else "?"
         where = f"{path}:{line_number}"
-        name = node.name
-        if name in glossary:
+        if (name := node.name) in glossary:
             errors.append(f"{where}: duplicate glossary entry for {name}")
             continue
         if previous is not None and name < previous:

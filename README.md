@@ -18,6 +18,7 @@ command at the start of a session.
 | `validate.py` | Syntax and consistency check (textX, PEP 723). |
 | `agents/opencode/embed.md` | The paragraph for the OpenCode `instructions` entry. |
 | `agents/opencode/rules.add.md` | The template of the OpenCode `/rules/add` command. |
+| `agents/opencode/rules.check.md` | The template of the OpenCode `/rules/check` command: a policy pass over a repository or files, run before every commit. |
 | `bin/rules` | The command line tool. |
 
 ## Commands
@@ -35,6 +36,7 @@ command at the start of a session.
 | `rules pull` | Update the store: `git pull --ff-only` |
 | `rules edit` | Open the store in `$EDITOR` |
 | `rules prompt` | Print the paragraph for a project's `AGENTS.md` |
+| `rules check` | Print the policy-check prompt (the `/rules/check` command body) |
 | `rules init` | Print the install block for a new machine or project |
 
 `wake` works offline. A failed pull is silent inside `wake` and reported
@@ -60,6 +62,7 @@ Install in OpenCode:
 ```bash
 mkdir -p ~/.config/opencode/commands/rules
 ln -sfn ~/development/rules/agents/opencode/rules.add.md ~/.config/opencode/commands/rules/add.md
+ln -sfn ~/development/rules/agents/opencode/rules.check.md ~/.config/opencode/commands/rules/check.md
 ```
 
 Then add `"instructions": ["~/development/rules/agents/opencode/embed.md"]` to
@@ -84,6 +87,20 @@ Do not copy policy files into the project.
 
 The projects need no change. They see the new policy at the next
 `rules wake`.
+
+## Check before a commit
+
+The policy is enforced by an agent pass, not by an external linter. In a
+project whose policy is the Rules store, run the check before every commit
+(`rules check` prints the same prompt for a bare agent):
+
+- OpenCode: run `/rules/check` with the repository, or a narrower target
+  such as a directory or files.
+- Bare agent: run `rules check` and follow the printed prompt over the
+  same target.
+
+`validate.py` stays a store-internal check of the policy and glossary
+syntax only; it never scans project code.
 
 ## Tests
 

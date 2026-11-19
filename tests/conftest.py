@@ -28,6 +28,7 @@ def store(tmp_path: Path) -> Path:
         "validate.py",
         "agents/opencode/embed.md",
         "agents/opencode/rules.add.md",
+        "agents/opencode/rules.check.md",
     ):
         path = target / name
         path.parent.mkdir(parents=True, exist_ok=True)

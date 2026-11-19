@@ -29,6 +29,7 @@ POLICY = "python.rules"
 GLOSSARY = "python.glossary"
 EMBED = "agents/opencode/embed.md"
 ADD_COMMAND = "agents/opencode/rules.add.md"
+CHECK_COMMAND = "agents/opencode/rules.check.md"
 LANGUAGE = "v1.1"
 SERVED = (
     "python.rules",
@@ -39,6 +40,7 @@ SERVED = (
     "validate.py",
     "agents/opencode/embed.md",
     "agents/opencode/rules.add.md",
+    "agents/opencode/rules.check.md",
 )
 
 
@@ -219,10 +221,11 @@ In ~/.config/opencode/opencode.json add:
 
   "instructions": ["{store}/{EMBED}"]
 
-Install the /rules-add command:
+Install the /rules-add and /rules-check commands:
 
   mkdir -p ~/.config/opencode/commands/rules
-  ln -sfn {store}/{ADD_COMMAND} ~/.config/opencode/commands/rules/add.md"""
+  ln -sfn {store}/{ADD_COMMAND} ~/.config/opencode/commands/rules/add.md
+  ln -sfn {store}/{CHECK_COMMAND} ~/.config/opencode/commands/rules/check.md"""
     )
     return 0
 
@@ -232,6 +235,14 @@ def cmd_prompt(store: Path) -> int:
     if not paragraph:
         return fail(f"store is incomplete: {EMBED} is missing")
     sys.stdout.write(paragraph if paragraph.endswith("\n") else paragraph + "\n")
+    return 0
+
+
+def cmd_check(store: Path) -> int:
+    prompt = read_store_file(store, CHECK_COMMAND)
+    if not prompt:
+        return fail(f"store is incomplete: {CHECK_COMMAND} is missing")
+    sys.stdout.write(prompt if prompt.endswith("\n") else prompt + "\n")
     return 0
 
 
@@ -250,6 +261,7 @@ COMMANDS = {
     "edit": lambda store, args: cmd_edit(store),
     "init": lambda store, args: cmd_init(store),
     "prompt": lambda store, args: cmd_prompt(store),
+    "check": lambda store, args: cmd_check(store),
 }
 
 

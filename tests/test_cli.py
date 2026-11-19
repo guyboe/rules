@@ -5,6 +5,8 @@ import subprocess
 import pytest
 from conftest import run
 
+CHECK = "agents/opencode/rules.check.md"
+
 
 class TestWake:
     def test_wake_prints_policy(self, store):
@@ -126,6 +128,11 @@ class TestGet:
         assert result.returncode == 0
         assert "Stage 1" in result.stdout
 
+    def test_get_check_command_file(self, store):
+        result = run(store, "get", "agents/opencode/rules.check.md")
+        assert result.returncode == 0
+        assert "Stage" in result.stdout
+
     def test_get_glossary_file(self, store):
         result = run(store, "get", "python.glossary")
         assert result.returncode == 0
@@ -182,6 +189,7 @@ class TestInit:
         assert f"{store}/agents/opencode/embed.md" in result.stdout
         assert "commands/rules" in result.stdout
         assert f"{store}/agents/opencode/rules.add.md" in result.stdout
+        assert f"{store}/agents/opencode/rules.check.md" in result.stdout
 
 
 class TestPrompt:
@@ -197,6 +205,14 @@ class TestPrompt:
         result = run(store, "prompt")
         assert "python.glossary" in result.stdout
         assert "alphabetical" in result.stdout
+
+    def test_prompt_requires_check_before_commit(self, store):
+        result = run(store, "prompt")
+        assert result.returncode == 0
+        assert "Before every commit" in result.stdout
+        assert "/rules/check" in result.stdout
+        assert "rules check" in result.stdout
+        assert "external linter" in result.stdout
 
     def test_prompt_missing_embed_file(self, tmp_path):
         target = tmp_path / "rules-store"
@@ -214,6 +230,27 @@ class TestPrompt:
         init = run(store, "init")
         assert prompt.returncode == 0
         assert prompt.stdout.strip() in init.stdout
+
+
+class TestCheck:
+    def test_check_prints_command_body(self, store):
+        result = run(store, "check")
+        assert result.returncode == 0
+        assert result.stdout == (store / CHECK).read_text(encoding="utf-8")
+
+    def test_check_mentions_stages_and_no_edit(self, store):
+        result = run(store, "check")
+        assert result.returncode == 0
+        assert "Stage 1" in result.stdout
+        assert "Make NO edits" in result.stdout
+
+    def test_check_missing_command_file(self, tmp_path):
+        target = tmp_path / "rules-store"
+        target.mkdir()
+        (target / "python.rules").write_text("[general]\n", encoding="utf-8")
+        result = run(target, "check")
+        assert result.returncode == 2
+        assert "rules.check.md is missing" in result.stderr
 
 
 class TestValidate:
