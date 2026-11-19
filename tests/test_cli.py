@@ -3,8 +3,7 @@
 import subprocess
 
 import pytest
-
-from conftest import ROOT, run
+from conftest import run
 
 
 class TestWake:
@@ -27,9 +26,7 @@ class TestWake:
     def test_wake_prints_glossary(self, store):
         result = run(store, "wake")
         assert "abbreviations — " in result.stdout
-        assert result.stdout.index("[general]") < result.stdout.index(
-            "abbreviations — "
-        )
+        assert result.stdout.index("[general]") < result.stdout.index("abbreviations — ")
 
     def test_wake_without_git_repository(self, store):
         result = run(store, "wake")
@@ -97,8 +94,7 @@ class TestShow:
         result = run(store, "show", "getattr_or_dict_get")
         assert result.returncode == 0
         assert result.stdout.strip().splitlines() == [
-            "FORBID getattr_or_dict_get WHEN "
-            "accessing_declared_pydantic_or_dataclass_fields"
+            "FORBID getattr_or_dict_get WHEN accessing_declared_pydantic_or_dataclass_fields"
         ]
 
     def test_show_unknown_topic(self, store):
@@ -116,9 +112,7 @@ class TestGet:
     def test_get_embed_file(self, store):
         result = run(store, "get", "agents/opencode/embed.md")
         assert result.returncode == 0
-        assert result.stdout == (store / "agents/opencode/embed.md").read_text(
-            encoding="utf-8"
-        )
+        assert result.stdout == (store / "agents/opencode/embed.md").read_text(encoding="utf-8")
 
     def test_get_add_command_file(self, store):
         result = run(store, "get", "agents/opencode/rules.add.md")
@@ -188,9 +182,7 @@ class TestPrompt:
         result = run(store, "prompt")
         assert result.returncode == 0
         assert result.stdout.startswith("# Rules\n\n")
-        assert result.stdout == (store / "agents/opencode/embed.md").read_text(
-            encoding="utf-8"
-        )
+        assert result.stdout == (store / "agents/opencode/embed.md").read_text(encoding="utf-8")
         assert "rules wake" in result.stdout
         assert "rules init" in result.stdout
 
@@ -205,9 +197,7 @@ class TestPrompt:
         (target / "python.rules").write_text("[general]\n", encoding="utf-8")
         (target / "agents").mkdir()
         (target / "agents/opencode").mkdir()
-        (target / "agents/opencode/rules.add.md").write_text(
-            "---\ndescription: probe\n---\nx\n", encoding="utf-8"
-        )
+        (target / "agents/opencode/rules.add.md").write_text("---\ndescription: probe\n---\nx\n", encoding="utf-8")
         result = run(target, "prompt")
         assert result.returncode == 2
         assert "embed.md is missing" in result.stderr

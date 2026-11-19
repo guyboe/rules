@@ -40,6 +40,8 @@ SERVED = (
     "agents/opencode/embed.md",
     "agents/opencode/rules.add.md",
 )
+
+
 def store_path() -> Path:
     override = os.environ.get("RULES_DIR")
     if override:
@@ -74,7 +76,7 @@ def parse_policy(path: Path) -> list[tuple[str | None, str]]:
     entries: list[tuple[str | None, str]] = []
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
-        if not line or line.startswith("#") or line.startswith("—"):
+        if not line or line.startswith(("#", "—")):
             continue
         if line.startswith("[") and line.endswith("]"):
             scope = line[1:-1]
@@ -84,7 +86,7 @@ def parse_policy(path: Path) -> list[tuple[str | None, str]]:
 
 
 def fail(message: str) -> int:
-    print(message, file=sys.stderr)  # noqa: T201
+    print(message, file=sys.stderr)
     return 2
 
 
@@ -97,7 +99,7 @@ def cmd_pull(store: Path, quiet: bool = False) -> int:
     else:
         reason = (result.stderr or result.stdout).strip() or "no usable remote"
     if not quiet:
-        print(f"pull failed: {reason}", file=sys.stderr)  # noqa: T201
+        print(f"pull failed: {reason}", file=sys.stderr)
     return 1
 
 
@@ -105,21 +107,15 @@ def cmd_wake(store: Path) -> int:
     policy = store / POLICY
     glossary = store / GLOSSARY
     if not policy.is_file() or not glossary.is_file():
-        return fail(
-            f"rules not installed: {store} needs {POLICY} and {GLOSSARY}; "
-            "run rules init"
-        )
+        return fail(f"rules not installed: {store} needs {POLICY} and {GLOSSARY}; run rules init")
     cmd_pull(store, quiet=True)
-    sys.stdout.write(version_line(store) + "\n")
-    sys.stdout.write(
-        "Grammar: rules get rules.tx. Contract: rules get semantics.md.\n\n"
-    )
+    print(version_line(store))
+    print("Grammar: rules get rules.tx. Contract: rules get semantics.md.")
+    print()
     text = policy.read_text(encoding="utf-8")
     sys.stdout.write(text if text.endswith("\n") else text + "\n")
     glossary_text = glossary.read_text(encoding="utf-8")
-    sys.stdout.write(
-        glossary_text if glossary_text.endswith("\n") else glossary_text + "\n"
-    )
+    sys.stdout.write(glossary_text if glossary_text.endswith("\n") else glossary_text + "\n")
     return 0
 
 
@@ -135,24 +131,23 @@ def cmd_show(store: Path, topic: str | None) -> int:
     if topic is None:
         for scope in scopes:
             count = sum(1 for owner, _line in entries if owner == scope)
-            print(f"[{scope}] {count} policies")  # noqa: T201
+            print(f"[{scope}] {count} policies")
         return 0
     wanted = topic.strip("[]")
     if wanted in scopes:
         for owner, line in entries:
             if owner == wanted:
-                print(line)  # noqa: T201
+                print(line)
         return 0
     matches = [line for _owner, line in entries if wanted in line.split()]
     if not matches:
-        print(  # noqa: T201
-            f"unknown topic {topic!r}; try a scope: "
-            + ", ".join(f"[{scope}]" for scope in scopes),
+        print(
+            f"unknown topic {topic!r}; try a scope: " + ", ".join(f"[{scope}]" for scope in scopes),
             file=sys.stderr,
         )
         return 2
     for line in matches:
-        print(line)  # noqa: T201
+        print(line)
     return 0
 
 
@@ -203,7 +198,7 @@ def cmd_init(store: Path) -> int:
     paragraph = read_store_file(store, EMBED)
     if not paragraph:
         return fail(f"store is incomplete: {EMBED} is missing")
-    print(  # noqa: T201
+    print(
         f"""Install the store on this machine:
 
   ln -sfn {store}/bin/rules ~/.local/bin/rules
@@ -241,7 +236,7 @@ def cmd_prompt(store: Path) -> int:
 
 
 def cmd_version(store: Path) -> int:
-    print(version_line(store))  # noqa: T201
+    print(version_line(store))
     return 0
 
 
@@ -259,7 +254,7 @@ COMMANDS = {
 
 
 def usage() -> None:
-    print(__doc__)  # noqa: T201
+    print(__doc__)
 
 
 def main(argv: list[str] | None = None) -> int:

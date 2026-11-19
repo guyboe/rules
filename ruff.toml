@@ -1,0 +1,3 @@
+# Ruff for the Python sources of the store: bin/rules, validate.py, tests/.
+# The default checker set applies; the only project choice is the line length.
+line-length = 120

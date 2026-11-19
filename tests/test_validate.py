@@ -23,9 +23,7 @@ class TestPep723Metadata:
     """rules/validate.py must carry its own dependency (textX) inline."""
 
     def test_block_present(self):
-        assert pep723_block(VALIDATE.read_text(encoding="utf-8")), (
-            "PEP 723 script block missing"
-        )
+        assert pep723_block(VALIDATE.read_text(encoding="utf-8")), "PEP 723 script block missing"
 
     def test_textx_pinned(self):
         block = pep723_block(VALIDATE.read_text(encoding="utf-8"))
@@ -66,9 +64,7 @@ class TestPythonRules:
 
     def test_strenum_rule_present(self):
         rules = (RULES_DIR / "python.rules").read_text(encoding="utf-8")
-        assert re.search(r"^\[types\]\s*$", rules, re.MULTILINE), (
-            "scope [types] missing"
-        )
+        assert re.search(r"^\[types\]\s*$", rules, re.MULTILINE), "scope [types] missing"
         assert re.search(
             r"^PREFER enum\.StrEnum_with_auto OVER bare_string_literals"
             r" WHEN string_values_compared_or_matched\s*$",
@@ -87,16 +83,21 @@ class TestPythonRules:
         )
 
 
-def validate(store: Path) -> subprocess.CompletedProcess[str]:
+def validate(store: Path, grammar: Path | None = None) -> subprocess.CompletedProcess[str]:
+    command = [
+        "uv",
+        "run",
+        "--no-project",
+        str(VALIDATE),
+    ]
+    if grammar is not None:
+        command += ["--grammar", str(grammar)]
+    command += [
+        str(store / "python.rules"),
+        str(store / "python.glossary"),
+    ]
     return subprocess.run(
-        [
-            "uv",
-            "run",
-            "--no-project",
-            str(VALIDATE),
-            str(store / "python.rules"),
-            str(store / "python.glossary"),
-        ],
+        command,
         capture_output=True,
         text=True,
         check=False,
@@ -122,11 +123,7 @@ class TestGlossaryFile:
 
     def test_entries_alphabetical(self):
         glossary = (RULES_DIR / "python.glossary").read_text(encoding="utf-8")
-        names = [
-            line.split(" — ")[0]
-            for line in glossary.splitlines()
-            if " — " in line and not line.startswith("#")
-        ]
+        names = [line.split(" — ")[0] for line in glossary.splitlines() if " — " in line and not line.startswith("#")]
         assert names == sorted(names)
 
 
@@ -171,8 +168,7 @@ class TestGlossaryValidation:
     def test_out_of_order_entries_rejected(self, store):
         glossary = store / "python.glossary"
         glossary.write_text(
-            "waste — deliberately out of order\n"
-            + glossary.read_text(encoding="utf-8"),
+            "waste — deliberately out of order\n" + glossary.read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         completed = validate(store)
@@ -189,3 +185,41 @@ class TestGlossaryValidation:
         completed = validate(store)
         assert completed.returncode == 1
         assert "simple_design" in completed.stderr
+
+
+class TestOperatorsFromGrammar:
+    """validate.py takes the operator literals from rules.tx, not from a copy."""
+
+    @staticmethod
+    def drift_store(store: Path, old: str, new: str, policy: str) -> Path:
+        grammar = (RULES_DIR / "rules.tx").read_text(encoding="utf-8")
+        (store / "rules.tx").write_text(grammar.replace(old, new), encoding="utf-8")
+        (store / "python.rules").write_text(policy, encoding="utf-8")
+        (store / "python.glossary").write_text("probe.x — the probe target\n", encoding="utf-8")
+        return store
+
+    def test_added_operator_warns_to_update_checks(self, store):
+        self.drift_store(
+            store,
+            "'USE' | 'PREFER' | 'AVOID' | 'FORBID'",
+            "'USE' | 'PREFER' | 'AVOID' | 'MUST' | 'FORBID'",
+            "[general]\nMUST probe.x\n",
+        )
+        completed = validate(store, grammar=store / "rules.tx")
+        assert completed.returncode == 1
+        assert "operator literals changed" in completed.stderr
+
+    def test_renamed_operator_fails_loud(self, store):
+        self.drift_store(
+            store,
+            "'USE' | 'PREFER' | 'AVOID' | 'FORBID'",
+            "'USE' | 'MAY' | 'AVOID' | 'FORBID'",
+            "[naming]\nMAY probe.x\n",
+        )
+        completed = validate(store, grammar=store / "rules.tx")
+        assert completed.returncode != 0
+        assert "operator literals changed" in completed.stderr
+
+    def test_shipped_grammar_matches_checks(self, store):
+        completed = validate(store, grammar=RULES_DIR / "rules.tx")
+        assert completed.returncode == 0, completed.stderr

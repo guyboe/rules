@@ -27,6 +27,11 @@ DEFAULT_RULES = ROOT / "python.rules"
 DEFAULT_GLOSSARY = ROOT / "python.glossary"
 
 
+def grammar_literals(mm_rules: object, rule_name: str) -> list[str]:
+    rule = mm_rules[rule_name]._tx_peg_rule
+    return [node.to_match for node in rule.nodes if type(node).__name__ == "StrMatch"]
+
+
 def condition_key(condition: object | None) -> tuple | None:
     if condition is None:
         return None
@@ -80,6 +85,13 @@ def check_rules(mm: object, path: Path) -> list[str]:
     seen_sections: set[str] = set()
     seen_rules: set[tuple] = set()
     policies: dict[tuple, set[str]] = {}
+    known = grammar_literals(mm, "Operator")
+    expected = {"PREFER", "USE", "FORBID", "AVOID"}
+    if set(known) != expected:
+        change = "rules.tx: operator literals changed; update the checks in "
+        details = f"validate.py (grammar has {', '.join(sorted(known))})"
+        return [change + details]
+    operators = {name: name for name in known}
 
     for node in model.lines:
         kind = type(node).__name__
@@ -95,9 +107,10 @@ def check_rules(mm: object, path: Path) -> list[str]:
             if scope is None:
                 errors.append(f"{where}: policy must follow a [scope]")
                 continue
-            if node.op != "PREFER" and node.alternative:
+            op = operators[node.op]
+            if op != "PREFER" and node.alternative:
                 errors.append(f"{where}: OVER is only valid with PREFER")
-            if node.op == "PREFER" and not node.alternative:
+            if op == "PREFER" and not node.alternative:
                 errors.append(f"{where}: PREFER requires OVER alternative")
             if node.alternative and node.target == node.alternative:
                 errors.append(f"{where}: target and alternative must differ")
@@ -112,18 +125,14 @@ def check_rules(mm: object, path: Path) -> list[str]:
                 condition_key(node.when),
                 condition_key(node.unless),
             )
-            whole = (*signature, node.op, node.alternative or "")
+            whole = (*signature, op, node.alternative or "")
             if whole in seen_rules:
                 errors.append(f"{where}: duplicate policy")
             seen_rules.add(whole)
-            operators = policies.setdefault(signature, set())
-            if (node.op == "USE" and "FORBID" in operators) or (
-                node.op == "FORBID" and "USE" in operators
-            ):
-                errors.append(
-                    f"{where}: direct USE/FORBID contradiction for {node.target}"
-                )
-            operators.add(node.op)
+            seen: set[str] = policies.setdefault(signature, set())
+            if (op == "USE" and "FORBID" in seen) or (op == "FORBID" and "USE" in seen):
+                errors.append(f"{where}: direct USE/FORBID contradiction for {node.target}")
+            seen.add(op)
     return errors
 
 
@@ -153,10 +162,7 @@ def check_glossary(mm: object, path: Path) -> list[str]:
             errors.append(f"{where}: duplicate glossary entry for {name}")
             continue
         if previous is not None and name < previous:
-            errors.append(
-                f"{where}: glossary entry {name} is out of alphabetical "
-                f"order, it belongs before {previous}"
-            )
+            errors.append(f"{where}: glossary entry {name} is out of alphabetical order, it belongs before {previous}")
         glossary[name] = line_number
         previous = name
     return errors
@@ -164,19 +170,16 @@ def check_glossary(mm: object, path: Path) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--grammar", type=Path, default=RULES_GRAMMAR, help="the rules grammar file")
     parser.add_argument("files", nargs="*", type=Path, help="*.rules files")
     args = parser.parse_args(argv)
     rules_paths = [p for p in args.files if p.suffix == ".rules"] or [DEFAULT_RULES]
-    glossary_paths = [p for p in args.files if p.suffix != ".rules"] or [
-        DEFAULT_GLOSSARY
-    ]
+    glossary_paths = [p for p in args.files if p.suffix != ".rules"] or [DEFAULT_GLOSSARY]
     try:
-        mm_rules = metamodel_from_file(str(RULES_GRAMMAR), skipws=False)
+        mm_rules = metamodel_from_file(str(args.grammar), skipws=False)
         mm_glossary = metamodel_from_file(str(GLOSSARY_GRAMMAR), skipws=False)
     except TextXError as exception:
-        print(  # noqa: T201
-            f"Invalid grammar: {exception}", file=sys.stderr
-        )
+        print(f"Invalid grammar: {exception}", file=sys.stderr)
         return 2
 
     errors: list[str] = []
@@ -193,23 +196,19 @@ def main(argv: list[str] | None = None) -> int:
             model = mm_glossary.model_from_str(source, file_name=str(path))
         except (OSError, TextXError):
             continue
-        defined.update(
-            node.name for node in model.lines if type(node).__name__ == "Entry"
-        )
+        defined.update(node.name for node in model.lines if type(node).__name__ == "Entry")
 
     glossary_path = glossary_paths[0]
     for name in sorted(used - defined):
         errors.append(f"{glossary_path}: glossary entry missing for {name}")
     for name in sorted(defined - used):
-        errors.append(
-            f"{glossary_path}: glossary name {name} is not used by any policy"
-        )
+        errors.append(f"{glossary_path}: glossary name {name} is not used by any policy")
 
     if errors:
-        print("\n".join(errors), file=sys.stderr)  # noqa: T201
+        print("\n".join(errors), file=sys.stderr)
         return 1
     for path in [*rules_paths, *glossary_paths]:
-        print(f"OK {path}")  # noqa: T201
+        print(f"OK {path}")
     return 0
 
 
